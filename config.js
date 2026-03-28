@@ -1,7 +1,7 @@
 // ============================================================
 // Δ HELIX v3 — CONFIGURATION
 // ============================================================
-
+ 
 export const CONFIG = {
     SUPABASE: {
         URL: 'https://oxlkisjwfarseyqgeyuw.supabase.co',
