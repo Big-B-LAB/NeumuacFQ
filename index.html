@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">  
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -3287,25 +3287,29 @@ function logSearch(query, isHit, matchedField, matchedVariantId) {
 async function fetchLocationOnce() {
     const si = STATE.searchIntelligence;
     if (si.locationCache !== null) return si.locationCache;
+    // ipapi.co — free, HTTPS, no key required, works on GitHub Pages
     try {
-        const res = await fetch('https://ip-api.com/json/?fields=status,country,regionName,city,lat,lon', {
-            signal: AbortSignal.timeout(3000)
+        const res = await fetch('https://ipapi.co/json/', {
+            signal: AbortSignal.timeout(4000)
         });
-        if (!res.ok) throw new Error('geo failed');
+        if (!res.ok) throw new Error(`geo HTTP ${res.status}`);
         const d = await res.json();
-        if (d.status === 'success') {
+        if (d && d.city) {
             si.locationCache = {
-                country:   d.country   || null,
-                region:    d.regionName|| null,
-                city:      d.city      || null,
-                latitude:  d.lat       || null,
-                longitude: d.lon       || null,
-                ip_source: 'ip-api'
+                country:   d.country_name || null,
+                region:    d.region       || null,
+                city:      d.city         || null,
+                latitude:  d.latitude     || null,
+                longitude: d.longitude    || null,
+                ip_source: 'ipapi.co'
             };
+            console.log('[Helix Geo] Location resolved:', si.locationCache.city, si.locationCache.country);
         } else {
+            console.warn('[Helix Geo] ipapi.co returned no city:', d);
             si.locationCache = {};
         }
     } catch(e) {
+        console.warn('[Helix Geo] Location fetch failed:', e.message);
         si.locationCache = {}; // don't retry this session
     }
     return si.locationCache;
@@ -3338,20 +3342,24 @@ async function persistSearchEvent(query, isHit, matchedField, matchedVariantId) 
             })
         });
         // If miss — upsert into miss queue
+        // Use ?on_conflict=query so Supabase knows which column triggers the upsert
         if (!isHit) {
-            await fetch(`${CONFIG.SUPABASE.URL}/rest/v1/search_miss_queue`, {
-                method: 'POST',
-                headers: {
-                    'apikey': CONFIG.SUPABASE.KEY,
-                    'Authorization': `Bearer ${CONFIG.SUPABASE.KEY}`,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'resolution=merge-duplicates,return=minimal'
-                },
-                body: JSON.stringify({
-                    query: query.toLowerCase().trim(),
-                    last_seen_at: new Date().toISOString()
-                })
-            });
+            await fetch(
+                `${CONFIG.SUPABASE.URL}/rest/v1/search_miss_queue?on_conflict=query`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'apikey': CONFIG.SUPABASE.KEY,
+                        'Authorization': `Bearer ${CONFIG.SUPABASE.KEY}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'resolution=merge-duplicates,return=minimal'
+                    },
+                    body: JSON.stringify({
+                        query: query.toLowerCase().trim(),
+                        last_seen_at: new Date().toISOString()
+                    })
+                }
+            );
         }
     } catch (e) { /* silent — logging never breaks the UI */ }
 }
