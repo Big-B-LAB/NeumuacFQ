@@ -2868,6 +2868,9 @@
             <button onclick="exportFullReport()" class="btn btn-secondary" id="dashExportBtn">
                 <i class="fas fa-download"></i> Export Full Report
             </button>
+            <button onclick="exportSearchPDF()" class="btn btn-secondary" id="siExportBtn" style="display:none;">
+                <i class="fas fa-file-pdf" style="color:#f87171;"></i> Download Search Report PDF
+            </button>
             <button onclick="closeDashboard()" class="btn btn-primary">Close</button>
         </div>
     </div>
@@ -3209,13 +3212,14 @@ function searchVariants(query) {
         else matchedField = 'alt_names';
     }
 
-    logSearch(query.trim(), results.length > 0, matchedField);
+    const matchedVariantId = results.length > 0 ? results[0].id : null;
+    logSearch(query.trim(), results.length > 0, matchedField, matchedVariantId);
     return results;
 }
 
 // ========== SEARCH INTELLIGENCE ==========
 
-function logSearch(query, isHit, matchedField) {
+function logSearch(query, isHit, matchedField, matchedVariantId) {
     if (!query || query.length < CONFIG.UI.MIN_SEARCH_CHARS) return;
     const si = STATE.searchIntelligence;
     const ts = Date.now();
@@ -3240,10 +3244,10 @@ function logSearch(query, isHit, matchedField) {
     if (si.timeline.length > 500) si.timeline.shift();
 
     // Persist to Supabase — fire-and-forget, never blocks UI
-    persistSearchEvent(query, isHit, matchedField);
+    persistSearchEvent(query, isHit, matchedField, matchedVariantId);
 }
 
-async function persistSearchEvent(query, isHit, matchedField) {
+async function persistSearchEvent(query, isHit, matchedField, matchedVariantId) {
     try {
         await fetch(`${CONFIG.SUPABASE.URL}/rest/v1/search_logs`, {
             method: 'POST',
@@ -3257,6 +3261,7 @@ async function persistSearchEvent(query, isHit, matchedField) {
                 query: query.toLowerCase().trim(),
                 is_hit: isHit,
                 matched_field: matchedField || null,
+                matched_variant_id: matchedVariantId || null,
                 session_id: STATE.searchIntelligence.sessionId,
                 searched_at: new Date().toISOString()
             })
@@ -3345,7 +3350,174 @@ function getSearchTimeline() {
     };
 }
 
-// ---- Search Intelligence export ----
+// ---- Search Intelligence PDF Report ----
+async function exportSearchPDF() {
+    // Load jsPDF dynamically
+    if (!window.jspdf) {
+        await new Promise((res, rej) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+            s.onload = res; s.onerror = rej;
+            document.head.appendChild(s);
+        });
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const si  = STATE.searchIntelligence;
+    const rate = getSearchHitRate();
+    const now  = new Date();
+    const W    = 210; // A4 width mm
+    const M    = 14;  // margin
+    let   y    = 20;
+
+    // ---- Helpers ----
+    const line = (x1, y1, x2, y2, color) => {
+        doc.setDrawColor(...(color || [226, 232, 240]));
+        doc.line(x1, y1, x2, y2);
+    };
+    const txt = (text, x, yPos, size, bold, color) => {
+        doc.setFontSize(size || 10);
+        doc.setFont('helvetica', bold ? 'bold' : 'normal');
+        doc.setTextColor(...(color || [15, 23, 42]));
+        doc.text(String(text), x, yPos);
+    };
+    const badge = (text, x, yPos, bgR, bgG, bgB, txR, txG, txB) => {
+        const w = doc.getTextWidth(text) + 4;
+        doc.setFillColor(bgR, bgG, bgB);
+        doc.roundedRect(x, yPos - 3.5, w, 5, 1, 1, 'F');
+        doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+        doc.setTextColor(txR, txG, txB);
+        doc.text(text, x + 2, yPos);
+        return w;
+    };
+
+    // ---- Header bar ----
+    doc.setFillColor(8, 15, 29);
+    doc.rect(0, 0, W, 24, 'F');
+    txt('Δ Helix', M, 10, 16, true, [255, 255, 255]);
+    txt('CFTR Precision Medicine — Search Intelligence Report', M, 16, 8, false, [154, 184, 224]);
+    txt(now.toLocaleString('en-GB'), W - M, 16, 8, false, [90, 122, 170]);
+    doc.setFontSize(8); doc.setTextColor(90, 122, 170);
+    doc.text(now.toLocaleString('en-GB'), W - M - doc.getTextWidth(now.toLocaleString('en-GB')), 16);
+    y = 34;
+
+    // ---- KPI row ----
+    const kpis = [
+        { label: 'Total searches', value: rate.total, color: [96, 165, 250] },
+        { label: 'Hit rate',       value: rate.total > 0 ? rate.hitRate + '%' : '—', color: [74, 222, 128] },
+        { label: 'Unique queries', value: si.globalHits.size + si.globalMisses.size, color: [251, 191, 36] },
+        { label: 'Miss queue',     value: si.globalMisses.size, color: [248, 113, 113] },
+    ];
+    const kW = (W - M * 2 - 9) / 4;
+    kpis.forEach((k, i) => {
+        const x = M + i * (kW + 3);
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(x, y, kW, 14, 1.5, 1.5, 'F');
+        doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3);
+        doc.roundedRect(x, y, kW, 14, 1.5, 1.5, 'S');
+        txt(k.label, x + 3, y + 5, 7, false, [100, 116, 139]);
+        doc.setFontSize(12); doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...k.color);
+        doc.text(String(k.value), x + 3, y + 11);
+    });
+    y += 22;
+
+    // ---- Section: Top Hits ----
+    const topHits   = getTopSearchHits(15);
+    const topMisses = getTopMisses(15);
+
+    if (topHits.length) {
+        txt('Most searched variants', M, y, 10, true, [15, 23, 42]); y += 2;
+        line(M, y, W - M, y); y += 5;
+        topHits.forEach((h, i) => {
+            if (y > 260) { doc.addPage(); y = 20; }
+            txt(String(i + 1).padStart(2, '0') + '.', M, y, 9, false, [148, 163, 184]);
+            txt(h.query, M + 8, y, 9, true, [15, 23, 42]);
+            badge('HIT', M + 80, y, 220, 252, 231, 22, 101, 52);
+            txt(h.count + ' searches', W - M - 28, y, 8, false, [100, 116, 139]);
+            y += 6;
+        });
+        y += 4;
+    }
+
+    // ---- Section: Miss Queue ----
+    if (topMisses.length) {
+        if (y > 240) { doc.addPage(); y = 20; }
+        txt('Miss queue — research gaps', M, y, 10, true, [15, 23, 42]); y += 2;
+        line(M, y, W - M, y); y += 5;
+        txt('Sorted by unique users. These queries returned no result — potential database gaps.', M, y, 7.5, false, [100, 116, 139]); y += 6;
+        topMisses.forEach((m, i) => {
+            if (y > 260) { doc.addPage(); y = 20; }
+            txt(String(i + 1).padStart(2, '0') + '.', M, y, 9, false, [148, 163, 184]);
+            txt(m.query, M + 8, y, 9, true, [15, 23, 42]);
+            badge('MISS', M + 80, y, 254, 226, 226, 153, 27, 27);
+            txt(m.sessions + ' user' + (m.sessions !== 1 ? 's' : ''), W - M - 42, y, 8, false, [248, 113, 113]);
+            txt(m.count + '×', W - M - 10, y, 8, false, [100, 116, 139]);
+            const statusColors = {
+                pending:   [251, 191, 36,  133, 77,  14],
+                in_review: [96,  165, 250, 30,  64,  175],
+                resolved:  [74,  222, 128, 6,   78,  59],
+            };
+            const sc = statusColors[m.status] || statusColors.pending;
+            badge(m.status || 'pending', W - M - 28, y, sc[0], sc[1], sc[2], sc[3], sc[4], sc[5]);
+            y += 6;
+        });
+        y += 4;
+    }
+
+    // ---- Section: Full session history ----
+    if (si.recentSearches.length) {
+        if (y > 230) { doc.addPage(); y = 20; }
+        txt('Session search history', M, y, 10, true, [15, 23, 42]); y += 2;
+        line(M, y, W - M, y); y += 5;
+
+        // Table header
+        doc.setFillColor(248, 250, 252);
+        doc.rect(M, y - 1, W - M * 2, 6, 'F');
+        txt('Query', M + 2, y + 3, 7.5, true, [100, 116, 139]);
+        txt('Status', M + 80, y + 3, 7.5, true, [100, 116, 139]);
+        txt('Matched field', M + 105, y + 3, 7.5, true, [100, 116, 139]);
+        txt('Time', W - M - 18, y + 3, 7.5, true, [100, 116, 139]);
+        y += 7;
+        line(M, y, W - M, y, [226, 232, 240]); y += 4;
+
+        const fieldLabel = { legacy_name:'Legacy name', protein_name:'Protein (HGVS)', cdna_name:'cDNA', alt_names:'Alt name' };
+
+        si.recentSearches.forEach((r, i) => {
+            if (y > 270) { doc.addPage(); y = 20; }
+            // Zebra stripe
+            if (i % 2 === 0) {
+                doc.setFillColor(250, 251, 252);
+                doc.rect(M, y - 3, W - M * 2, 6, 'F');
+            }
+            txt(r.query, M + 2, y, 8.5, false, [15, 23, 42]);
+            if (r.isHit) {
+                badge('HIT', M + 80, y, 220, 252, 231, 22, 101, 52);
+            } else {
+                badge('MISS', M + 80, y, 254, 226, 226, 153, 27, 27);
+            }
+            txt(r.matchedField ? (fieldLabel[r.matchedField] || r.matchedField) : '—', M + 105, y, 8, false, [100, 116, 139]);
+            txt(new Date(r.ts).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit'}), W - M - 18, y, 8, false, [100, 116, 139]);
+            y += 6;
+        });
+    }
+
+    // ---- Footer on every page ----
+    const pageCount = doc.getNumberOfPages();
+    for (let p = 1; p <= pageCount; p++) {
+        doc.setPage(p);
+        line(M, 285, W - M, 285, [226, 232, 240]);
+        txt('Δ Helix — CFTR Precision Medicine Platform', M, 290, 7, false, [148, 163, 184]);
+        txt('Page ' + p + ' of ' + pageCount, W - M - 20, 290, 7, false, [148, 163, 184]);
+        txt('CONFIDENTIAL — For clinical use only', W / 2, 290, 7, false, [200, 200, 200]);
+    }
+
+    doc.save('helix-search-report-' + now.toISOString().split('T')[0] + '.pdf');
+    showNotification('PDF report downloaded', 'success');
+}
+
+// ---- Search Intelligence text export ----
 function exportSearchReport() {
     const top    = getTopSearchHits(20);
     const misses = getTopMisses(20);
@@ -4636,6 +4808,7 @@ function setDashTab(tab, btn) {
     });
     document.getElementById('siPanel').style.display = tab === 'search' ? 'block' : 'none';
     document.getElementById('dashExportBtn').style.display = tab === 'search' ? 'none' : '';
+    document.getElementById('siExportBtn').style.display  = tab === 'search' ? '' : 'none';
     // Update tab highlight
     document.querySelectorAll('#dashModalTitle').forEach(el => {
         el.textContent = tab === 'clinical' ? 'Analytics Dashboard' : 'Search Intelligence';
@@ -4757,7 +4930,23 @@ function renderSICharts() {
     if (!ctx) return;
     const si = STATE.searchIntelligence;
     if (si.siCharts['timeline']) { si.siCharts['timeline'].destroy(); delete si.siCharts['timeline']; }
-    if (!tl.labels.length) return;
+    // Empty state — show placeholder instead of black box
+    if (!tl.labels.length) {
+        const parent = ctx.parentElement;
+        ctx.style.display = 'none';
+        if (!parent.querySelector('.si-chart-empty')) {
+            const empty = document.createElement('div');
+            empty.className = 'si-chart-empty';
+            empty.style.cssText = 'height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;';
+            empty.innerHTML = '<div style="width:28px;height:28px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;"><i class="fas fa-chart-bar" style="font-size:11px;color:var(--text-tertiary);"></i></div><span style="font-size:11px;color:var(--text-tertiary);">Search some variants to populate this chart</span>';
+            parent.appendChild(empty);
+        }
+        return;
+    }
+    // Remove empty state if data arrives
+    const emptyEl = ctx.parentElement.querySelector('.si-chart-empty');
+    if (emptyEl) emptyEl.remove();
+    ctx.style.display = 'block';
     si.siCharts['timeline'] = new Chart(ctx, {
         data: {
             labels: tl.labels,
@@ -5204,7 +5393,7 @@ Object.assign(window, {
     showEvidenceModal, closeAddEvidenceModal, selectEvidenceType, saveEvidenceLink,
     showAllEvidence, closeAllEvidenceModal, copyToClipboard,
     downloadTemplate, processBulkImport,
-    setDashTab, setSITab, exportSearchReport,
+    setDashTab, setSITab, exportSearchReport, exportSearchPDF,
     toggleBookmark, isBookmarked
 });
 </script>
