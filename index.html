@@ -2777,6 +2777,7 @@
                 <button class="si-tab active" id="siTab-overview" onclick="setSITab('overview',this)">Overview</button>
                 <button class="si-tab" id="siTab-misses" onclick="setSITab('misses',this)">Miss queue</button>
                 <button class="si-tab" id="siTab-recent" onclick="setSITab('recent',this)">Session</button>
+                <button class="si-tab" id="siTab-geo" onclick="setSITab('geo',this)"><i class="fas fa-map-marker-alt" style="font-size:9px;margin-right:4px;"></i>Geography</button>
             </div>
 
             <div id="siPanelOverview" class="si-panel active">
@@ -2846,6 +2847,30 @@
                                 <span>Query not found</span><span>Users</span><span>Count</span>
                             </div>
                             <div id="siMissQueue"><div style="font-size:11px;color:var(--text-tertiary);padding:12px 0;">No misses recorded yet.</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="siPanelGeo" class="si-panel" style="display:none;">
+                <div class="si-body">
+                    <div class="si-card">
+                        <div class="si-card-head">
+                            <div class="si-card-title"><span style="width:6px;height:6px;border-radius:50%;background:#2979ff;display:inline-block;"></span>Search locations — where are clinicians searching from?</div>
+                            <div class="si-card-note" id="siGeoNote">Loading…</div>
+                        </div>
+                        <div class="si-card-body">
+                            <div id="siGeoMap" style="height:240px;border-radius:6px;overflow:hidden;background:var(--surface);"></div>
+                        </div>
+                    </div>
+                    <div class="si-row2">
+                        <div class="si-card">
+                            <div class="si-card-head"><div class="si-card-title"><span style="width:6px;height:6px;border-radius:50%;background:#4ade80;display:inline-block;"></span>Top cities</div></div>
+                            <div class="si-card-body" id="siGeoCities"><div style="font-size:11px;color:var(--text-tertiary);">No location data yet</div></div>
+                        </div>
+                        <div class="si-card">
+                            <div class="si-card-head"><div class="si-card-title"><span style="width:6px;height:6px;border-radius:50%;background:#fbbf24;display:inline-block;"></span>Top variants by region</div></div>
+                            <div class="si-card-body" id="siGeoVariants"><div style="font-size:11px;color:var(--text-tertiary);">No location data yet</div></div>
                         </div>
                     </div>
                 </div>
@@ -3047,7 +3072,8 @@ const STATE = {
         globalMisses: new Map(),
         timeline: [],
         sessionId: 'sess_' + Math.random().toString(36).slice(2,10),
-        siCharts: {}
+        siCharts: {},
+        locationCache: null  // { country, region, city, latitude, longitude } — fetched once per session
     }
 };
 
@@ -3247,8 +3273,37 @@ function logSearch(query, isHit, matchedField, matchedVariantId) {
     persistSearchEvent(query, isHit, matchedField, matchedVariantId);
 }
 
+// Fetch location once per session via ip-api.com (free, no key, city-level)
+async function fetchLocationOnce() {
+    const si = STATE.searchIntelligence;
+    if (si.locationCache !== null) return si.locationCache;
+    try {
+        const res = await fetch('https://ip-api.com/json/?fields=status,country,regionName,city,lat,lon', {
+            signal: AbortSignal.timeout(3000)
+        });
+        if (!res.ok) throw new Error('geo failed');
+        const d = await res.json();
+        if (d.status === 'success') {
+            si.locationCache = {
+                country:   d.country   || null,
+                region:    d.regionName|| null,
+                city:      d.city      || null,
+                latitude:  d.lat       || null,
+                longitude: d.lon       || null,
+                ip_source: 'ip-api'
+            };
+        } else {
+            si.locationCache = {};
+        }
+    } catch(e) {
+        si.locationCache = {}; // don't retry this session
+    }
+    return si.locationCache;
+}
+
 async function persistSearchEvent(query, isHit, matchedField, matchedVariantId) {
     try {
+        const loc = await fetchLocationOnce();
         await fetch(`${CONFIG.SUPABASE.URL}/rest/v1/search_logs`, {
             method: 'POST',
             headers: {
@@ -3263,7 +3318,13 @@ async function persistSearchEvent(query, isHit, matchedField, matchedVariantId) 
                 matched_field: matchedField || null,
                 matched_variant_id: matchedVariantId || null,
                 session_id: STATE.searchIntelligence.sessionId,
-                searched_at: new Date().toISOString()
+                searched_at: new Date().toISOString(),
+                country:   loc.country   || null,
+                region:    loc.region    || null,
+                city:      loc.city      || null,
+                latitude:  loc.latitude  || null,
+                longitude: loc.longitude || null,
+                ip_source: loc.ip_source || null
             })
         });
         // If miss — upsert into miss queue
@@ -3348,6 +3409,151 @@ function getSearchTimeline() {
         misses: data.map(d => d.misses),
         rates: data.map(d => { const tot=d.hits+d.misses; return tot>0 ? Math.round((d.hits/tot)*1000)/10 : 0; })
     };
+}
+
+// ---- Geography tab ----
+async function renderGeoTab() {
+    const noteEl = document.getElementById('siGeoNote');
+    const mapEl  = document.getElementById('siGeoMap');
+    const citiesEl   = document.getElementById('siGeoCities');
+    const variantsEl = document.getElementById('siGeoVariants');
+
+    if (noteEl) noteEl.textContent = 'Fetching location data…';
+
+    // Load Leaflet dynamically if not present
+    if (!window.L) {
+        await Promise.all([
+            new Promise((res,rej) => {
+                const l = document.createElement('link');
+                l.rel='stylesheet'; l.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+                l.onload=res; l.onerror=rej; document.head.appendChild(l);
+            }),
+            new Promise((res,rej) => {
+                const s = document.createElement('script');
+                s.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+                s.onload=res; s.onerror=rej; document.head.appendChild(s);
+            })
+        ]);
+    }
+
+    // Fetch location data from search_logs
+    try {
+        const res = await fetch(
+            `${CONFIG.SUPABASE.URL}/rest/v1/search_logs` +
+            `?select=query,is_hit,city,country,region,latitude,longitude` +
+            `&latitude=not.is.null&order=searched_at.desc&limit=1000`,
+            { headers: { 'apikey': CONFIG.SUPABASE.KEY, 'Authorization': `Bearer ${CONFIG.SUPABASE.KEY}` } }
+        );
+        const rows = await res.json();
+
+        if (!rows.length) {
+            if (noteEl) noteEl.textContent = 'No location data yet — search some variants first';
+            if (mapEl)  mapEl.innerHTML = '<div style="height:100%;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary);">Location data will appear after searches are logged</div>';
+            return;
+        }
+
+        if (noteEl) noteEl.textContent = rows.length + ' searches with location data';
+
+        // Init or reuse map
+        if (!window._helixMap) {
+            mapEl.style.zIndex = '1';
+            window._helixMap = L.map('siGeoMap', { zoomControl: true, scrollWheelZoom: false });
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© OpenStreetMap © CARTO',
+                maxZoom: 14
+            }).addTo(window._helixMap);
+        }
+
+        // Clear old markers
+        if (window._helixMarkers) window._helixMarkers.forEach(m => m.remove());
+        window._helixMarkers = [];
+
+        // Group by lat/lon
+        const points = new Map();
+        rows.forEach(r => {
+            const key = `${r.latitude},${r.longitude}`;
+            if (!points.has(key)) points.set(key, { lat: r.latitude, lon: r.longitude, city: r.city, country: r.country, hits: 0, misses: 0, queries: [] });
+            const p = points.get(key);
+            if (r.is_hit) p.hits++; else p.misses++;
+            if (!p.queries.includes(r.query)) p.queries.push(r.query);
+        });
+
+        const allPoints = Array.from(points.values());
+        const maxCount  = Math.max(...allPoints.map(p => p.hits + p.misses));
+
+        allPoints.forEach(p => {
+            const total  = p.hits + p.misses;
+            const radius = Math.max(5, Math.min(18, 5 + (total / maxCount) * 13));
+            const hitRate = total > 0 ? Math.round((p.hits / total) * 100) : 0;
+            const color  = hitRate >= 70 ? '#4ade80' : hitRate >= 40 ? '#fbbf24' : '#f87171';
+            const marker = L.circleMarker([p.lat, p.lon], {
+                radius, color, fillColor: color, fillOpacity: 0.5,
+                weight: 1.5, opacity: 0.9
+            }).addTo(window._helixMap);
+            marker.bindPopup(
+                `<div style="font-family:monospace;font-size:12px;min-width:160px;">` +
+                `<strong>${p.city || 'Unknown city'}</strong><br>` +
+                `${p.country || ''}<br>` +
+                `<span style="color:#4ade80;">${p.hits} hits</span> · ` +
+                `<span style="color:#f87171;">${p.misses} misses</span><br>` +
+                `Hit rate: ${hitRate}%<br>` +
+                `Queries: ${p.queries.slice(0,3).join(', ')}${p.queries.length > 3 ? '…' : ''}` +
+                `</div>`
+            );
+            window._helixMarkers.push(marker);
+        });
+
+        // Fit map to markers
+        if (allPoints.length) {
+            const bounds = L.latLngBounds(allPoints.map(p => [p.lat, p.lon]));
+            window._helixMap.fitBounds(bounds, { padding: [20, 20] });
+        }
+
+        // Top cities table
+        const cityMap = new Map();
+        rows.forEach(r => {
+            const key = r.city && r.country ? `${r.city}, ${r.country}` : (r.city || r.country || 'Unknown');
+            if (!cityMap.has(key)) cityMap.set(key, { hits:0, misses:0 });
+            const c = cityMap.get(key);
+            if (r.is_hit) c.hits++; else c.misses++;
+        });
+        const topCities = Array.from(cityMap.entries())
+            .sort((a,b) => (b[1].hits+b[1].misses) - (a[1].hits+a[1].misses))
+            .slice(0, 8);
+        const maxCity = topCities.length ? (topCities[0][1].hits + topCities[0][1].misses) : 1;
+        citiesEl.innerHTML = topCities.map(([city, d]) => {
+            const tot = d.hits + d.misses;
+            const pct = Math.round(tot / maxCity * 100);
+            return `<div class="si-bar-row">
+                <div class="si-bl" title="${city}">${city}</div>
+                <div class="si-bt"><div class="si-bf g" style="width:${pct}%"></div></div>
+                <div class="si-bn">${tot}</div>
+            </div>`;
+        }).join('') || '<div style="font-size:11px;color:var(--text-tertiary);">No data</div>';
+
+        // Top queries by region
+        const regionMap = new Map();
+        rows.filter(r => r.is_hit).forEach(r => {
+            const region = r.region || r.country || 'Unknown';
+            if (!regionMap.has(region)) regionMap.set(region, new Map());
+            const qMap = regionMap.get(region);
+            qMap.set(r.query, (qMap.get(r.query) || 0) + 1);
+        });
+        const topRegions = Array.from(regionMap.entries())
+            .sort((a,b) => b[1].size - a[1].size).slice(0, 6);
+        variantsEl.innerHTML = topRegions.map(([region, qMap]) => {
+            const top = Array.from(qMap.entries()).sort((a,b)=>b[1]-a[1])[0];
+            return `<div class="si-miss-row">
+                <div class="si-miss-q">${region}</div>
+                <div style="font-size:10px;font-family:var(--font-mono);color:#4ade80;">${top ? top[0] : '—'}</div>
+                <div class="si-miss-n">${top ? top[1]+'×' : ''}</div>
+            </div>`;
+        }).join('') || '<div style="font-size:11px;color:var(--text-tertiary);">No hit data yet</div>';
+
+    } catch(e) {
+        if (noteEl) noteEl.textContent = 'Failed to load location data';
+        console.error('Geo tab error:', e);
+    }
 }
 
 // ---- Search Intelligence PDF Report ----
@@ -4819,13 +5025,14 @@ function setDashTab(tab, btn) {
 }
 
 function setSITab(name, btn) {
-    ['overview','misses','recent'].forEach(t => {
+    ['overview','misses','recent','geo'].forEach(t => {
         const el = document.getElementById('siPanel' + t.charAt(0).toUpperCase() + t.slice(1));
         if (el) el.style.display = t === name ? 'block' : 'none';
     });
     document.querySelectorAll('.si-tab').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
-    populateSITab(name);
+    if (name === 'geo') renderGeoTab();
+    else populateSITab(name);
 }
 
 function populateSITab(name) {
@@ -5393,7 +5600,7 @@ Object.assign(window, {
     showEvidenceModal, closeAddEvidenceModal, selectEvidenceType, saveEvidenceLink,
     showAllEvidence, closeAllEvidenceModal, copyToClipboard,
     downloadTemplate, processBulkImport,
-    setDashTab, setSITab, exportSearchReport, exportSearchPDF,
+    setDashTab, setSITab, exportSearchReport, exportSearchPDF, renderGeoTab,
     toggleBookmark, isBookmarked
 });
 </script>
