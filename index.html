@@ -442,85 +442,39 @@
             50% { transform: scaleY(1.8); opacity: 0.7; background: rgba(41,121,255,0.6); }
         }
 
-        /* ============================================================
-           DEV WATERMARK — "SISTEMA EN DESARROLLO"
-           ============================================================ */
-        .dev-watermark {
-            position: fixed;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 9000;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            padding: 10px 28px 12px;
-            background: linear-gradient(135deg, rgba(4,8,15,0.92) 0%, rgba(10,18,35,0.92) 100%);
-            border: 1px solid rgba(251,191,36,0.35);
-            border-bottom: none;
-            border-radius: 14px 14px 0 0;
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            box-shadow: 0 -4px 24px rgba(251,191,36,0.08), inset 0 1px 0 rgba(251,191,36,0.12);
-            min-width: 420px;
-        }
-
-        .dev-watermark::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(251,191,36,0.5) 30%, rgba(251,191,36,0.5) 70%, transparent);
-        }
-
-        .dev-top-row {
+        /* ---- Dev notice — slim dismissible header bar ---- */
+        .dev-notice {
+            background: rgba(251,191,36,0.05);
+            border-bottom: 1px solid rgba(251,191,36,0.18);
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 10px;
-        }
-
-        .dev-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: #fbbf24;
-            animation: devBlink 1.8s ease-in-out infinite;
-            flex-shrink: 0;
-            box-shadow: 0 0 6px rgba(251,191,36,0.6);
-        }
-
-        @keyframes devBlink {
-            0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(251,191,36,0.7); }
-            50% { opacity: 0.4; box-shadow: none; }
-        }
-
-        .dev-text {
-            font-family: 'IBM Plex Mono', monospace;
+            padding: 6px 40px 6px 20px;
             font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-            color: #fbbf24;
-            white-space: nowrap;
-        }
-
-        .dev-version {
             font-family: 'IBM Plex Mono', monospace;
-            font-size: 9px;
-            color: rgba(251,191,36,0.45);
-            margin-left: 4px;
-            letter-spacing: 0.08em;
+            color: rgba(251,191,36,0.7);
+            letter-spacing: .06em;
+            position: relative;
+            flex-shrink: 0;
         }
+        .dev-notice-dot {
+            width: 5px; height: 5px; border-radius: 50%;
+            background: #fbbf24; flex-shrink: 0;
+            animation: devBlink 1.8s ease-in-out infinite;
+            box-shadow: 0 0 4px rgba(251,191,36,0.6);
+        }
+        .dev-notice-version { opacity: 0.45; font-size: 9px; }
+        .dev-notice-contact { font-size: 10px; color: rgba(255,255,255,0.3); letter-spacing:.02em; }
+        .dev-notice-sep { width:1px; height:12px; background:rgba(251,191,36,0.2); flex-shrink:0; }
+        .dev-notice-close {
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; color: rgba(251,191,36,0.35);
+            cursor: pointer; font-size: 15px; padding: 4px 7px;
+            border-radius: 4px; line-height: 1; transition: color .15s, background .15s;
+        }
+        .dev-notice-close:hover { color: rgba(251,191,36,0.85); background: rgba(251,191,36,0.08); }
 
-        .dev-sub {
-            font-family: 'IBM Plex Sans', sans-serif;
-            font-size: 10px;
-            color: rgba(251,191,36,0.5);
-            letter-spacing: 0.05em;
-            white-space: nowrap;
-        }
 
         /* ============================================================
            APP SHELL — FULL VIEWPORT LAYOUT
@@ -528,7 +482,7 @@
 
         .app-shell {
             display: grid;
-            grid-template-rows: var(--header-height) 1fr;
+            grid-template-rows: var(--header-height) auto 1fr;
             grid-template-columns: var(--sidebar-width) 1fr;
             height: 100vh;
             transition: grid-template-columns var(--transition-slow);
@@ -1040,6 +994,26 @@
             right: 0; top: 0; bottom: 0;
             width: 1px;
             background: rgba(41,121,255,0.3);
+        }
+
+        /* Search hit flash on the row itself */
+        @keyframes rowHitFlash {
+            0%   { background: rgba(41,121,255,0.1); }
+            18%  { background: rgba(74,222,128,0.18); border-bottom-color: rgba(74,222,128,0.3); }
+            55%  { background: rgba(74,222,128,0.10); }
+            100% { background: rgba(41,121,255,0.1); border-bottom-color: rgba(41,121,255,0.2); }
+        }
+        @keyframes rowAccentFlash {
+            0%   { background: var(--brand); box-shadow: 2px 0 12px rgba(41,121,255,0.4); }
+            18%  { background: #4ade80;      box-shadow: 2px 0 14px rgba(74,222,128,0.6); }
+            55%  { background: #4ade80;      box-shadow: 2px 0 8px rgba(74,222,128,0.3); }
+            100% { background: var(--brand); box-shadow: 2px 0 12px rgba(41,121,255,0.4); }
+        }
+        .variant-row.selected.row-hit-flash {
+            animation: rowHitFlash 800ms cubic-bezier(0.4,0,0.2,1) forwards;
+        }
+        .variant-row.selected.row-hit-flash::before {
+            animation: rowAccentFlash 800ms cubic-bezier(0.4,0,0.2,1) forwards;
         }
 
         /* Class accent bar — left edge (visible on non-selected) */
@@ -3035,14 +3009,7 @@
 <!-- ================================================================
      DEV WATERMARK
      ================================================================ -->
-<div class="dev-watermark">
-    <div class="dev-top-row">
-        <div class="dev-dot"></div>
-        <span class="dev-text">Sistema Actualmente en Desarrollo</span>
-        <span class="dev-version">v3.0-β</span>
-    </div>
-    <div class="dev-sub">Esta plataforma está en fase de desarrollo activo — funcionalidades pueden cambiar sin previo aviso</div>
-</div>
+<!-- Dev notice replaces the bottom watermark — shown inline, dismissible -->
 
 <!-- Hit flash overlay (full screen wash) -->
 <div class="hit-wash" id="hitWash"></div>
@@ -3109,6 +3076,15 @@
             </div>
         </div>
     </header>
+
+    <!-- Dev notice — spans full width, shows once -->
+    <div class="dev-notice" id="devNotice" style="grid-column: 1 / -1;">
+        <span class="dev-notice-dot"></span>
+        <span>v3.0-β &nbsp;·&nbsp; En desarrollo</span>
+        <span class="dev-notice-sep"></span>
+        <span class="dev-notice-contact">Contacto: Neumología · CHUAC</span>
+        <button class="dev-notice-close" onclick="dismissDevNotice()" title="Dismiss">×</button>
+    </div>
 
     <!-- ============================================================
          SIDEBAR
@@ -3806,7 +3782,7 @@
             <div style="display:flex;gap:8px;">
                 <button onclick="exportFullReport()" class="btn btn-secondary" id="dashExportBtn"
                     style="background:rgba(41,121,255,0.12);border-color:rgba(41,121,255,0.35);color:#60a5fa;font-weight:600;">
-                    <i class="fas fa-download"></i> Export Clinical Report
+                    <i class="fas fa-download"></i> <span id="dashExportLabel">Export Clinical Report</span>
                 </button>
                 <button onclick="exportSearchPDF()" class="btn btn-secondary" id="siExportBtn" style="display:none;background:rgba(248,113,113,0.1);border-color:rgba(248,113,113,0.3);color:#f87171;font-weight:600;">
                     <i class="fas fa-file-pdf"></i> Download Search Report PDF
@@ -5346,6 +5322,19 @@ function selectVariant(name, fromSearch) {
     STATE.view.selectedVariant = variant;
     renderVariantList(); // update selection highlight
     renderVariantDetail(variant, fromSearch || false);
+    // Flash the row green if this came from a search
+    if (fromSearch) {
+        requestAnimationFrame(() => {
+            // Find the row by data — rows are rendered with escapeAttr(v.legacy_name)
+            const rows = document.querySelectorAll('.variant-row.selected');
+            rows.forEach(row => {
+                row.classList.remove('row-hit-flash');
+                void row.offsetWidth; // reflow to restart animation
+                row.classList.add('row-hit-flash');
+                setTimeout(() => row.classList.remove('row-hit-flash'), 850);
+            });
+        });
+    }
 }
 
 function clearSearch() {
@@ -5445,20 +5434,7 @@ function renderVariantList() {
                     <span class="row-name">${hl(v.legacy_name)}${isExceptional ? ' <span style="color:var(--class-ii);font-size:9px;font-family:var(--font-body)">⚡</span>' : ''}</span>
                     ${v.cftr_class ? `<span class="row-class-badge ${cls}">${v.cftr_class}</span>` : ''}
                 </div>
-                ${(() => {
-                    const prot = v.protein_name;
-                    const cdna = v.cdna_name;
-                    if (prot && prot !== 'p.?') {
-                        // Real protein consequence — show it
-                        return `<div class="row-protein">${hl(prot)}</div>`;
-                    } else if (cdna) {
-                        // p.? or no protein — show cDNA which is always actionable
-                        const display = cdna.length > 22 ? cdna.slice(0,21)+'…' : cdna;
-                        return `<div class="row-protein">${hl(display)}</div>`;
-                    } else {
-                        return '<div class="row-protein" style="opacity:0.2;">—</div>';
-                    }
-                })()}
+                ${v.protein_name ? `<div class="row-protein">${hl(v.protein_name)}</div>` : '<div class="row-protein" style="opacity:0.4">—</div>'}
                 <div class="row-indicators">
                     <span class="eti-indicator ${eti}">
                         <span class="eti-dot"></span>
@@ -6673,6 +6649,10 @@ function setDashTab(tab, btn) {
     // Title
     const titles = { clinical:'Analytics Dashboard', search:'Search Intelligence', gaps:'Research Gaps', command:'Command Centre' };
     document.querySelectorAll('#dashModalTitle').forEach(el => { el.textContent = titles[tab] || 'Analytics'; });
+    // Context-aware export label
+    const exportLabels = { clinical:'Export Clinical Report', gaps:'Export Gap Report', command:'Export Platform Report', search:'Export Clinical Report' };
+    const labelEl = document.getElementById('dashExportLabel');
+    if (labelEl) labelEl.textContent = exportLabels[tab] || 'Export Clinical Report';
 
     document.querySelectorAll('[id^="dashTab-"]').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
@@ -6838,7 +6818,7 @@ function renderSICharts() {
         options: {
             responsive:true, maintainAspectRatio:false,
             plugins:{
-                legend:{ labels:{ color:'var(--text-secondary)', font:{size:10}, boxWidth:10, padding:12 } },
+                legend:{ labels:{ color:'rgba(255,255,255,0.8)', font:{size:10}, boxWidth:10, padding:14, usePointStyle:true, pointStyleWidth:8 } },
                 tooltip:{ backgroundColor:'var(--surface)', borderColor:'var(--border)', borderWidth:1, titleColor:'var(--text-primary)', bodyColor:'var(--text-secondary)',
                     callbacks:{ label: ctx => ctx.dataset.label === 'Hit rate %' ? ` Hit rate: ${ctx.parsed.y}%` : ` ${ctx.dataset.label}: ${ctx.parsed.y}` }
                 }
@@ -6871,7 +6851,7 @@ function renderCharts() {
             responsive: true, 
             cutout: '68%', 
             plugins: { 
-                legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } 
+                legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 }, color:'rgba(255,255,255,0.75)', padding:10 } } 
             } 
         }
     };
@@ -7085,6 +7065,29 @@ function showNotification(msg, type='info', duration=CONFIG.UI.NOTIFICATION_DURA
     `;
     c.appendChild(n);
     if (duration > 0) setTimeout(() => n.remove(), duration);
+}
+
+// ========== DEV NOTICE ==========
+function dismissDevNotice() {
+    const el = document.getElementById('devNotice');
+    if (el) {
+        el.style.transition = 'opacity 250ms ease, max-height 300ms ease';
+        el.style.overflow = 'hidden';
+        el.style.opacity = '0';
+        el.style.maxHeight = '0';
+        el.style.padding = '0';
+        setTimeout(() => el.remove(), 320);
+    }
+    try { localStorage.setItem('helix_dev_notice_dismissed', '1'); } catch(e) {}
+}
+
+function initDevNotice() {
+    try {
+        if (localStorage.getItem('helix_dev_notice_dismissed') === '1') {
+            const el = document.getElementById('devNotice');
+            if (el) el.remove();
+        }
+    } catch(e) {}
 }
 
 // ========== HIT FLASH ENGINE ==========
@@ -8063,6 +8066,7 @@ async function init() {
     attachEvents();
     initSearch();
     initializeBulkImport();
+    initDevNotice(); // hide notice if previously dismissed
     await loadVariants();
     initHospital(); // must run after variants load so modal times correctly
 }
@@ -8287,6 +8291,7 @@ Object.assign(window, {
     setDashTab, setSITab, exportSearchReport, exportSearchPDF, renderGeoTab,
     showMissQueuePanel, showGapQueuePanel, updateIntelStrip, updateSearchDropdown,
     triggerHitFlash, triggerMissFlash, classifyHit,
+    dismissDevNotice,
     setGeoPeriod, toggleGeoLayer, renderGeoMarkers,
     analyseAndRegisterGap, renderGapQueue, updateGapChip,
     renderGapQueue, renderCommandCentre, calculateGapScore,
