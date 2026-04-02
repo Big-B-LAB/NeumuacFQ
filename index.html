@@ -1132,14 +1132,13 @@
         .si-tab.active { background:var(--white); color:var(--text-primary); border-color:var(--border); }
         .si-tab:hover:not(.active) { color:var(--text-secondary); }
         .si-panel { display:none; }
-        .si-panel.active { display:flex; flex-direction:column; flex:1; min-height:0; overflow-y:auto; }
         .si-kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border-bottom:1px solid var(--border); }
         .si-kpi { background:var(--surface); padding:12px 14px; }
         .si-kpi-label { font-size:9px; font-weight:600; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:.1em; margin-bottom:5px; }
         .si-kpi-val { font-size:19px; font-weight:700; font-family:var(--font-mono); line-height:1; color:var(--text-primary); }
         .si-kpi-val.g { color:#4ade80; } .si-kpi-val.r { color:#f87171; } .si-kpi-val.a { color:#fbbf24; } .si-kpi-val.b { color:#60a5fa; }
         .si-kpi-sub { font-size:10px; color:var(--text-tertiary); margin-top:3px; font-family:var(--font-mono); }
-        .si-body { padding:16px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; }
+        .si-body { padding:16px; display:flex; flex-direction:column; gap:14px; }
         .si-card { background:var(--surface-alt); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
         .si-card-head { padding:9px 13px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
         .si-card-title { font-size:10px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.08em; display:flex; align-items:center; gap:7px; }
@@ -2421,39 +2420,81 @@
            ============================================================ */
 
         /* Full-viewport analytics modal */
+        /* ================================================================
+           ANALYTICS MODAL — Full viewport, scrollable tab panels
+           ================================================================ */
+
+        /* 1. Overlay: stretch to fill screen */
+        #dashboardModal {
+            align-items: stretch;
+            padding: 16px;
+        }
+
+        /* 2. Modal box: full size, flex column */
         .dashboard-modal {
-            max-width: 100vw !important;
-            width: calc(100vw - 32px) !important;
-            max-height: calc(100vh - 32px) !important;
-            height: calc(100vh - 32px) !important;
+            width: 100% !important;
+            height: 100% !important;
+            max-width: none !important;
+            max-height: none !important;
             display: flex !important;
             flex-direction: column !important;
             overflow: hidden !important;
             border-radius: 12px !important;
         }
+
+        /* 3. Header: fixed height, never scrolls */
         .dashboard-modal .modal-header {
-            flex-shrink: 0;
-            position: sticky;
-            top: 0;
+            flex: 0 0 auto;
             z-index: 20;
         }
+
+        /* 4. Body: fills remaining height, no overflow itself */
         .dashboard-modal .modal-body {
-            flex: 1;
-            overflow-y: auto;
+            flex: 1 1 0;
+            overflow: hidden;
             padding: 0;
             min-height: 0;
+            display: flex;
+            flex-direction: column;
         }
+
+        /* 5. Footer: fixed height, never scrolls */
         .dashboard-modal .modal-footer {
-            flex-shrink: 0;
-            position: sticky;
-            bottom: 0;
+            flex: 0 0 auto;
             z-index: 20;
             padding: 12px 20px;
+            background: #0a1220;
+            border-top: 1px solid var(--border);
         }
-        /* Inner content areas scroll independently */
-        .si-body { overflow-y: auto; max-height: none; }
-        .si-panel { height: 100%; }
-        #dashModalBody { display: flex; flex-direction: column; height: 100%; }
+
+        /* 6. Tab panels: each fills body and scrolls independently */
+        .dash-tab-panel {
+            flex: 1 1 0;
+            overflow-y: auto;
+            min-height: 0;
+            height: 100%;
+        }
+
+        /* 7. Inner padding wrapper inside tab panel */
+        .dash-scroll-inner {
+            padding: 16px 20px 24px;
+        }
+
+        /* 8. SI panel system inside Search tab */
+        .si-panel { display: none; }
+        .si-panel.active {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+        }
+        .si-body {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
 
         .dash-grid {
             display: grid;
@@ -3130,7 +3171,10 @@
                 </button>
             </div>
         </div>
-        <div class="modal-body" id="dashModalBody" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;">
+        <div class="modal-body" id="dashModalBody">
+            <!-- ---- CLINICAL TAB PANEL ---- -->
+            <div class="dash-tab-panel" id="clinicalPanel">
+            <div class="dash-scroll-inner">
             <div class="dash-kpis">
                 <div class="dash-kpi">
                     <div class="dash-kpi-value" id="dkTotal">—</div>
@@ -3152,37 +3196,42 @@
             <div class="dash-grid">
                 <div class="dash-card">
                     <div class="dash-card-title">Class Distribution</div>
-                    <canvas id="classChart" height="200"></canvas>
+                    <div style="position:relative;height:240px;width:100%;">
+                        <canvas id="classChart"></canvas>
+                    </div>
                 </div>
                 <div class="dash-card">
                     <div class="dash-card-title">ETI Response</div>
-                    <canvas id="responseChart" height="200"></canvas>
+                    <div style="position:relative;height:240px;width:100%;">
+                        <canvas id="responseChart"></canvas>
+                    </div>
                 </div>
             </div>
             <div class="dash-card">
                 <div class="dash-card-title">Data Completeness</div>
-                <canvas id="completionChart" height="100"></canvas>
+                <div style="position:relative;height:80px;width:100%;">
+                    <canvas id="completionChart"></canvas>
+                </div>
             </div>
-            <div class="dash-card mt-4">
+            <div class="dash-card" style="margin-top:14px;">
                 <div class="dash-card-title">Exceptional Cases</div>
-                <div class="flex items-center justify-between">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
                     <div>
-                        <p class="text-3xl font-bold text-[var(--class-ii)]" id="dashboardExceptional">—</p>
-                        <p class="text-xs text-gray-600 mt-1">Class I responsive to ETI</p>
+                        <div style="font-size:28px;font-weight:700;font-family:var(--font-mono);color:var(--class-ii);" id="dashboardExceptional">—</div>
+                        <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Class I variants responsive to ETI</div>
                     </div>
-                    <div class="w-16 h-16 rounded-full bg-[var(--class-ii-bg)] flex items-center justify-center">
-                        <i class="fas fa-star text-2xl text-[var(--class-ii)]"></i>
+                    <div style="width:52px;height:52px;border-radius:50%;background:var(--class-ii-bg);display:flex;align-items:center;justify-content:center;">
+                        <i class="fas fa-star" style="font-size:20px;color:var(--class-ii);"></i>
                     </div>
                 </div>
-                <div class="mt-4 pt-4 border-t border-gray-200">
-                    <p class="text-xs text-gray-500">
-                        <span id="exceptionalPercentile">—</span>% of Class I variants show exceptional response
-                    </p>
+                <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+                    <span style="font-size:11px;color:var(--text-tertiary);"><span id="exceptionalPercentile">—</span>% of Class I variants show exceptional ETI response</span>
                 </div>
             </div>
-        </div>
-        <!-- Research Gaps panel -->
-        <div id="gapPanel" style="display:none;">
+            </div><!-- /dash-scroll-inner -->
+            </div><!-- /clinicalPanel -->
+            <!-- Research Gaps panel -->
+        <div id="gapPanel" class="dash-tab-panel" style="display:none;">
             <div class="si-body">
                 <div class="si-card">
                     <div class="si-card-head">
@@ -3200,7 +3249,7 @@
         </div>
 
         <!-- Command Centre panel -->
-        <div id="commandPanel" style="display:none;">
+        <div id="commandPanel" class="dash-tab-panel" style="display:none;">
             <div class="cc-panel">
                 <div class="cc-card">
                     <div class="cc-card-head"><span class="cc-card-title">High priority variants</span><span style="font-size:10px;color:var(--text-tertiary);">searched · unvalidated</span></div>
@@ -3218,7 +3267,7 @@
         </div>
 
         <!-- Search Intelligence tab content -->
-        <div id="siPanel" style="display:none;">
+        <div id="siPanel" class="dash-tab-panel" style="display:none; flex-direction:column;">
             <div class="si-tabs">
                 <button class="si-tab active" id="siTab-overview" onclick="setSITab('overview',this)">Overview</button>
                 <button class="si-tab" id="siTab-misses" onclick="setSITab('misses',this)">Miss queue</button>
@@ -5990,6 +6039,15 @@ function copyToClipboard(text) {
 
 function showDashboard() {
     document.getElementById('dashboardModal').classList.remove('hidden');
+    // Ensure clinical panel is visible on open with correct sizing
+    const cp = document.getElementById('clinicalPanel');
+    if (cp) {
+        cp.style.display  = 'block';
+        cp.style.flex     = '1';
+        cp.style.minHeight = '0';
+        cp.style.overflowY = 'auto';
+        cp.style.height   = '100%';
+    }
     // Default to clinical tab
     setDashTab('clinical', document.getElementById('dashTab-clinical'));
     setTimeout(renderCharts, 100);
@@ -6004,32 +6062,43 @@ function closeDashboard() {
 }
 
 function setDashTab(tab, btn) {
-    const panelIds = ['siPanel','gapPanel','commandPanel'];
-    const body = document.getElementById('dashModalBody');
+    // All panels in the modal body
+    const allPanels = ['clinicalPanel','siPanel','gapPanel','commandPanel'];
 
-    // Show/hide clinical children (all except our panels)
-    Array.from(body.children).forEach(el => {
-        if (panelIds.includes(el.id)) return;
-        el.style.display = tab === 'clinical' ? '' : 'none';
-    });
-
-    // Show/hide special panels
-    panelIds.forEach(id => {
+    allPanels.forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
+        if (!el) return;
+        if (id === tab + 'Panel' ||
+            (tab === 'clinical' && id === 'clinicalPanel') ||
+            (tab === 'search'   && id === 'siPanel') ||
+            (tab === 'gaps'     && id === 'gapPanel') ||
+            (tab === 'command'  && id === 'commandPanel')) {
+            // Show — the active panel fills the body and scrolls
+            el.style.display  = tab === 'search' ? 'flex' : 'block';
+            el.style.flex     = '1';
+            el.style.minHeight = '0';
+            el.style.overflow = 'hidden';
+            if (tab === 'search') el.style.flexDirection = 'column';
+        } else {
+            el.style.display = 'none';
+            el.style.flex    = '';
+        }
     });
-    if (tab === 'search')  { const p = document.getElementById('siPanel');      if(p) p.style.display='block'; }
-    if (tab === 'gaps')    { const p = document.getElementById('gapPanel');     if(p) p.style.display='block'; }
-    if (tab === 'command') { const p = document.getElementById('commandPanel'); if(p) p.style.display='block'; }
+
+    // The modal body itself is also a flex column
+    const body = document.getElementById('dashModalBody');
+    if (body) {
+        body.style.overflow = 'hidden';
+    }
 
     // Export buttons
-    const expBtn  = document.getElementById('dashExportBtn');
-    const siBtn   = document.getElementById('siExportBtn');
-    if (expBtn) expBtn.style.display = (tab==='search'||tab==='gaps'||tab==='command') ? 'none' : '';
+    const expBtn = document.getElementById('dashExportBtn');
+    const siBtn  = document.getElementById('siExportBtn');
+    if (expBtn) expBtn.style.display = tab === 'search' ? 'none' : '';
     if (siBtn)  siBtn.style.display  = tab === 'search' ? '' : 'none';
 
     // Title
-    const titles = {clinical:'Analytics Dashboard', search:'Search Intelligence', gaps:'Research Gaps', command:'Command Centre'};
+    const titles = { clinical:'Analytics Dashboard', search:'Search Intelligence', gaps:'Research Gaps', command:'Command Centre' };
     document.querySelectorAll('#dashModalTitle').forEach(el => { el.textContent = titles[tab] || 'Analytics'; });
 
     document.querySelectorAll('[id^="dashTab-"]').forEach(b => b.classList.remove('active'));
@@ -6044,7 +6113,19 @@ function setSITab(name, btn) {
     ['overview','misses','recent','geo','gaps'].forEach(t => {
         const panel = 'siPanel' + t.charAt(0).toUpperCase() + t.slice(1);
         const el = document.getElementById(panel);
-        if (el) el.style.display = t === name ? 'block' : 'none';
+        if (!el) return;
+        if (t === name) {
+            el.style.display = 'flex';
+            el.style.flexDirection = 'column';
+            el.style.flex = '1';
+            el.style.minHeight = '0';
+            el.style.overflowY = 'auto';
+            el.classList.add('active');
+        } else {
+            el.style.display = 'none';
+            el.style.flex = '';
+            el.classList.remove('active');
+        }
     });
     document.querySelectorAll('.si-tab').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
@@ -6269,8 +6350,12 @@ function renderCharts() {
         const canvas = document.getElementById(id);
         if (!canvas) return;
         if (STATE.ui.charts[id]) STATE.ui.charts[id].destroy();
-        
         let cfg = id === 'classChart' ? classCfg : id === 'responseChart' ? respCfg : compCfg;
+        // Ensure charts never overflow their fixed-height containers
+        cfg = JSON.parse(JSON.stringify(cfg));
+        cfg.options = cfg.options || {};
+        cfg.options.responsive = true;
+        cfg.options.maintainAspectRatio = false;
         STATE.ui.charts[id] = new Chart(canvas, cfg);
     });
 }
