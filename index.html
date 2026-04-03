@@ -8132,71 +8132,68 @@ document.addEventListener('DOMContentLoaded', init);
     }
 
     // Particle canvas
-    const canvas = document.getElementById('loadCanvas');
-    const ctx = canvas ? canvas.getContext('2d') : null;
-    let animId = null;
-    let particles = [];
+// Particle canvas — molecular network
+const canvas = document.getElementById('loadCanvas');
+const ctx    = canvas.getContext('2d');
+let animId   = null;
+let particles = [];
 
-    function initCanvas() {
-        if (!canvas || !ctx) return;
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        particles = [];
-        for (let i = 0; i < 55; i++) {
-            particles.push({
-                x: Math.random() * canvas.width,
-                y: Math.random() * canvas.height,
-                vx: (Math.random() - 0.5) * 0.4,
-                vy: (Math.random() - 0.5) * 0.4,
-                r: 1 + Math.random() * 1.5,
-                alpha: 0.2 + Math.random() * 0.5,
-            });
-        }
+function initCanvas() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    particles = Array.from({ length: 55 }, () => ({
+        x:   Math.random() * canvas.width,
+        y:   Math.random() * canvas.height,
+        vx:  (Math.random() - 0.5) * 0.4,
+        vy:  (Math.random() - 0.5) * 0.4,
+        r:   1 + Math.random() * 1.5,
+        alpha: 0.2 + Math.random() * 0.5,
+    }));
+}
+
+function drawCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const W = canvas.width, H = canvas.height;
+    const cx = W / 2, cy = H / 2;
+
+    // Move
+    for (const p of particles) {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+        if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
     }
 
-    function drawCanvas() {
-        if (!canvas || !ctx) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        var W = canvas.width, H = canvas.height;
-        var cx = W / 2, cy = H / 2;
-
-        for (var p of particles) {
-            p.x += p.vx; p.y += p.vy;
-            if (p.x < 0) p.x = W;
-            if (p.x > W) p.x = 0;
-            if (p.y < 0) p.y = H;
-            if (p.y > H) p.y = 0;
-        }
-
-        for (var i = 0; i < particles.length; i++) {
-            for (var j = i + 1; j < particles.length; j++) {
-                var a = particles[i], b = particles[j];
-                var dx = a.x - b.x, dy = a.y - b.y;
-                var dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < 130) {
-                    var strength = (1 - dist / 130) * 0.18;
-                    ctx.beginPath();
-                    ctx.moveTo(a.x, a.y);
-                    ctx.lineTo(b.x, b.y);
-                    ctx.strokeStyle = 'rgba(41,121,255,' + strength + ')';
-                    ctx.lineWidth = 0.8;
-                    ctx.stroke();
-                }
+    // Connections
+    for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+            const a = particles[i], b = particles[j];
+            const dx = a.x - b.x, dy = a.y - b.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < 130) {
+                const strength = (1 - dist / 130) * 0.18;
+                ctx.beginPath();
+                ctx.moveTo(a.x, a.y);
+                ctx.lineTo(b.x, b.y);
+                ctx.strokeStyle = 'rgba(41,121,255,' + strength + ')';
+                ctx.lineWidth = 0.8;
+                ctx.stroke();
             }
         }
-
-        for (var p of particles) {
-            var dx = p.x - cx, dy = p.y - cy;
-            var distFromCenter = Math.sqrt(dx*dx + dy*dy);
-            var fade = Math.max(0, 1 - distFromCenter / (Math.min(W, H) * 0.6));
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(41,121,255,' + (p.alpha * fade) + ')';
-            ctx.fill();
-        }
-
-        animId = requestAnimationFrame(drawCanvas);
     }
+
+    // Dots
+    for (const p of particles) {
+        const dx = p.x - cx, dy = p.y - cy;
+        const distFromCenter = Math.sqrt(dx*dx + dy*dy);
+        const fade = Math.max(0, 1 - distFromCenter / (Math.min(W, H) * 0.6));
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(41,121,255,' + (p.alpha * fade) + ')';
+        ctx.fill();
+    }
+
+    animId = requestAnimationFrame(drawCanvas);
+}
 
     function stopCanvas() {
         if (animId) cancelAnimationFrame(animId);
