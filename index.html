@@ -8029,6 +8029,7 @@ document.addEventListener('DOMContentLoaded', init);
 // ========== LOADING SCREEN — REAL MILESTONE SYSTEM ==========
 // Progress is driven by actual async work in init(). No fake timers.
 // Milestones are resolved externally via window.LOADER.advance(key).
+// ========== LOADING SCREEN — REAL MILESTONE SYSTEM ==========
 (function() {
     const fill       = document.getElementById('loadBarFill');
     const statusEl   = document.getElementById('loadStatusText');
@@ -8037,21 +8038,19 @@ document.addEventListener('DOMContentLoaded', init);
     const counterEl  = document.getElementById('loadVariantCounter');
     const greetingEl = document.getElementById('loadHospitalGreeting');
 
-    // ── Milestones — each maps to a real async event ──────────────────
     const MILESTONES = [
-        { key: 'boot',        pct: 8,   msg: 'Iniciando sistema…' },
-        { key: 'db_connect',  pct: 22,  msg: 'Conectando base de datos CFTR…' },
-        { key: 'fetch_page',  pct: 40,  msg: 'Cargando variantes genéticas…' },
-        { key: 'index',       pct: 62,  msg: 'Construyendo índice de búsqueda…' },
-        { key: 'search_intel',pct: 75,  msg: 'Hidratando inteligencia de búsqueda…' },
-        { key: 'render',      pct: 88,  msg: 'Preparando interfaz clínica…' },
+        { key: 'boot',        pct: 8,   msg: 'Iniciando sistema...' },
+        { key: 'db_connect',  pct: 22,  msg: 'Conectando base de datos CFTR...' },
+        { key: 'fetch_page',  pct: 40,  msg: 'Cargando variantes geneticas...' },
+        { key: 'index',       pct: 62,  msg: 'Construyendo indice de busqueda...' },
+        { key: 'search_intel',pct: 75,  msg: 'Hidratando inteligencia de busqueda...' },
+        { key: 'render',      pct: 88,  msg: 'Preparando interfaz clinica...' },
         { key: 'done',        pct: 100, msg: 'Sistema listo.' },
     ];
     const milestoneMap = new Map(MILESTONES.map(m => [m.key, m]));
     let currentPct = 0;
     let dismissed  = false;
 
-    // ── Odometer counter ──────────────────────────────────────────────
     function animatePct(target) {
         const start = currentPct;
         if (target <= start) return;
@@ -8069,7 +8068,6 @@ document.addEventListener('DOMContentLoaded', init);
         currentPct = target;
     }
 
-    // ── Status text with typewriter effect ───────────────────────────
     let typeTimer = null;
     function setStatus(msg) {
         clearTimeout(typeTimer);
@@ -8088,7 +8086,6 @@ document.addEventListener('DOMContentLoaded', init);
         }, 140);
     }
 
-    // ── Advance by milestone key ──────────────────────────────────────
     function advance(key) {
         if (dismissed) return;
         const m = milestoneMap.get(key);
@@ -8101,35 +8098,31 @@ document.addEventListener('DOMContentLoaded', init);
         }
     }
 
-    // ── Variant fetch counter (called during paginated loop) ──────────
     function setVariantCount(n) {
         if (n === 0) { counterEl.textContent = ''; return; }
-        counterEl.textContent = `${n.toLocaleString()} variantes encontradas…`;
+        counterEl.textContent = n.toLocaleString() + ' variantes encontradas...';
     }
 
-    // ── Hospital greeting (reads localStorage) ────────────────────────
     function showHospitalGreeting() {
         try {
             const saved = localStorage.getItem('deltahelix_hospital');
             if (saved) {
                 const h = JSON.parse(saved);
                 const name = h.name || h;
-                greetingEl.textContent = `Bienvenido — ${name}`;
+                greetingEl.textContent = 'Bienvenido — ' + name;
                 greetingEl.classList.add('visible');
             }
         } catch(e) {}
     }
 
-    // ── Error state ───────────────────────────────────────────────────
     function setError(msg) {
         if (dismissed) return;
         screen.classList.add('load-error');
         fill.style.width = '100%';
         pctEl.textContent = 'ERR';
-        setStatus(msg || 'Error de conexión — comprueba tu red');
+        setStatus(msg || 'Error de conexion — comprueba tu red');
     }
 
-    // ── Dismiss ───────────────────────────────────────────────────────
     function dismiss() {
         if (dismissed) return;
         dismissed = true;
@@ -8138,64 +8131,67 @@ document.addEventListener('DOMContentLoaded', init);
         setTimeout(() => { screen.style.display = 'none'; }, 750);
     }
 
-    // ── Particle canvas — molecular network ──────────────────────────
+    // Particle canvas
     const canvas = document.getElementById('loadCanvas');
-    const ctx    = canvas.getContext('2d');
-    let animId   = null;
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    let animId = null;
     let particles = [];
 
     function initCanvas() {
-        canvas.width  = window.innerWidth;
+        if (!canvas || !ctx) return;
+        canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        particles = Array.from({ length: 55 }, () => ({
-            x:   Math.random() * canvas.width,
-            y:   Math.random() * canvas.height,
-            vx:  (Math.random() - 0.5) * 0.4,
-            vy:  (Math.random() - 0.5) * 0.4,
-            r:   1 + Math.random() * 1.5,
-            alpha: 0.2 + Math.random() * 0.5,
-        }));
+        particles = [];
+        for (let i = 0; i < 55; i++) {
+            particles.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                vx: (Math.random() - 0.5) * 0.4,
+                vy: (Math.random() - 0.5) * 0.4,
+                r: 1 + Math.random() * 1.5,
+                alpha: 0.2 + Math.random() * 0.5,
+            });
+        }
     }
 
     function drawCanvas() {
+        if (!canvas || !ctx) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const W = canvas.width, H = canvas.height;
-        const cx = W / 2, cy = H / 2;
+        var W = canvas.width, H = canvas.height;
+        var cx = W / 2, cy = H / 2;
 
-        // Move
-        for (const p of particles) {
+        for (var p of particles) {
             p.x += p.vx; p.y += p.vy;
-            if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
-            if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+            if (p.x < 0) p.x = W;
+            if (p.x > W) p.x = 0;
+            if (p.y < 0) p.y = H;
+            if (p.y > H) p.y = 0;
         }
 
-        // Connections — only within 130px
-        for (let i = 0; i < particles.length; i++) {
-            for (let j = i + 1; j < particles.length; j++) {
-                const a = particles[i], b = particles[j];
-                const dx = a.x - b.x, dy = a.y - b.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
+        for (var i = 0; i < particles.length; i++) {
+            for (var j = i + 1; j < particles.length; j++) {
+                var a = particles[i], b = particles[j];
+                var dx = a.x - b.x, dy = a.y - b.y;
+                var dist = Math.sqrt(dx*dx + dy*dy);
                 if (dist < 130) {
-                    // Fade with distance AND with proximity to screen edges
-                    const strength = (1 - dist / 130) * 0.18;
+                    var strength = (1 - dist / 130) * 0.18;
                     ctx.beginPath();
                     ctx.moveTo(a.x, a.y);
                     ctx.lineTo(b.x, b.y);
-                    ctx.strokeStyle = `rgba(41,121,255,${strength})`;
+                    ctx.strokeStyle = 'rgba(41,121,255,' + strength + ')';
                     ctx.lineWidth = 0.8;
                     ctx.stroke();
                 }
             }
         }
 
-        // Dots — brighter near center
-        for (const p of particles) {
-            const dx = p.x - cx, dy = p.y - cy;
-            const distFromCenter = Math.sqrt(dx*dx + dy*dy);
-            const fade = Math.max(0, 1 - distFromCenter / (Math.min(W, H) * 0.6));
+        for (var p of particles) {
+            var dx = p.x - cx, dy = p.y - cy;
+            var distFromCenter = Math.sqrt(dx*dx + dy*dy);
+            var fade = Math.max(0, 1 - distFromCenter / (Math.min(W, H) * 0.6));
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(41,121,255,${p.alpha * fade})`;
+            ctx.fillStyle = 'rgba(41,121,255,' + (p.alpha * fade) + ')';
             ctx.fill();
         }
 
@@ -8207,26 +8203,29 @@ document.addEventListener('DOMContentLoaded', init);
         animId = null;
     }
 
-    initCanvas();
-    window.addEventListener('resize', initCanvas);
-    drawCanvas();
+    if (canvas && ctx) {
+        initCanvas();
+        window.addEventListener('resize', initCanvas);
+        drawCanvas();
+    }
 
-    // ── Boot milestone fires immediately ─────────────────────────────
-    setTimeout(() => {
+    setTimeout(function() {
         advance('boot');
         showHospitalGreeting();
     }, 200);
 
-    // ── Safety net: if init() never calls 'done', bail after 12s ─────
-    const safetyTimer = setTimeout(() => {
+    var safetyTimer = setTimeout(function() {
         if (!dismissed) dismiss();
     }, 12000);
 
-    // ── Expose to init() and loadVariants() ──────────────────────────
-    window.LOADER = { advance, setVariantCount, setError, dismiss,
-        _clearSafety: () => clearTimeout(safetyTimer) };
+    window.LOADER = { 
+        advance: advance, 
+        setVariantCount: setVariantCount, 
+        setError: setError, 
+        dismiss: dismiss,
+        _clearSafety: function() { clearTimeout(safetyTimer); }
+    };
 })();
-
 
 // Expose globals for inline onclick handlers
 Object.assign(window, {
