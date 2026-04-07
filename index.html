@@ -6739,6 +6739,13 @@ async function loadExistingRoles() {
 }
 
 function showValidationModal(variantName, variantId) {
+    if (!isWriteMode()) {
+        requireWriteMode(
+            () => showValidationModal(variantName, variantId),
+            `You are trying to validate "${variantName}" — enter PIN to continue`
+        );
+        return;
+    }
     STATE.ui.validationContext = { variantName, variantId };
     setText('validateVariantName', variantName);
     ['clinicianName','clinicianRoleInput','validationNotes'].forEach(id => {
@@ -6874,6 +6881,14 @@ async function loadValidationHistory(variantId) {
 // ========== ANNOTATION ==========
 
 function showAnnotationModal(variantName, field, currentValue) {
+    if (!isWriteMode()) {
+        const fieldLabel = field.replace(/_/g,' ');
+        requireWriteMode(
+            () => showAnnotationModal(variantName, field, currentValue),
+            `You are trying to edit ${fieldLabel} — enter PIN to continue`
+        );
+        return;
+    }
     const variant = STATE.variantsByLegacyName.get(variantName);
     if (!variant) return;
     STATE.ui.annotationContext = { variant, field, currentValue };
@@ -6979,6 +6994,13 @@ async function saveAnnotation() {
 // ========== DELETE ==========
 
 function showDeleteModal(name, id) {
+    if (!isWriteMode()) {
+        requireWriteMode(
+            () => showDeleteModal(name, id),
+            `You are trying to delete "${name}" — enter PIN to continue`
+        );
+        return;
+    }
     STATE.ui.deleteContext = { variantName: name, variantId: id };
     setText('deleteVariantName', name);
     document.getElementById('deleteModal').classList.remove('hidden');
@@ -7035,6 +7057,13 @@ async function confirmDeleteVariant() {
 // ========== IMPORT ==========
 
 function showImportModal() {
+    if (!isWriteMode()) {
+        requireWriteMode(
+            () => showImportModal(),
+            'You are trying to import variants — enter PIN to continue'
+        );
+        return;
+    }
     document.getElementById('importModal').classList.remove('hidden');
     switchImportTab('json');
 }
@@ -7450,6 +7479,13 @@ function downloadTemplate() {
 // ========== EVIDENCE ==========
 
 function showEvidenceModal(variantName, variantId) {
+    if (!isWriteMode()) {
+        requireWriteMode(
+            () => showEvidenceModal(variantName, variantId),
+            `You are trying to add evidence to "${variantName}" — enter PIN to continue`
+        );
+        return;
+    }
     currentVariantName = variantName;
     currentVariantId = variantId;
     
@@ -8342,11 +8378,17 @@ function renderInstitutionGroupedList(institutions, filter) {
 
     const TYPE_ICON = { hospital: 'fa-hospital', research: 'fa-flask', university: 'fa-graduation-cap', lab: 'fa-microscope', other: 'fa-building' };
 
+    // Store institutions in a lookup map so onclick can pass just an index
+    window._instLookup = {};
+
     el.innerHTML = countries.map(country => {
         const insts = byCountry.get(country);
-        const rows = insts.map(i => `
-            <div class="hospital-suggestion" style="display:flex;align-items:center;gap:8px;padding:9px 14px;"
-                 onclick="selectInstitutionFromList(${JSON.stringify(JSON.stringify(i)).slice(1,-1)})">
+        const rows = insts.map(i => {
+            const key = 'inst_' + i.id;
+            window._instLookup[key] = i;
+            return `
+            <div class="hospital-suggestion" style="display:flex;align-items:center;gap:8px;padding:9px 14px;cursor:pointer;"
+                 onclick="selectInstitutionByKey('${key}')">
                 <i class="fas ${TYPE_ICON[i.institution_type] || 'fa-building'}" style="font-size:10px;color:#4a6a99;width:12px;flex-shrink:0;"></i>
                 <div style="flex:1;min-width:0;">
                     <div style="font-size:12px;color:#f0f6ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHTML(i.name)}</div>
@@ -8354,7 +8396,8 @@ function renderInstitutionGroupedList(institutions, filter) {
                 </div>
                 ${i.is_verified ? `<i class="fas fa-check-circle" style="font-size:9px;color:#34d399;flex-shrink:0;" title="Verified institution"></i>` : ''}
                 <span style="font-size:9px;color:#3a4a6a;font-family:var(--font-mono);">${i.usage_count||1}×</span>
-            </div>`).join('');
+            </div>`;
+        }).join('');
 
         return `
             <div style="border-bottom:1px solid rgba(99,140,210,0.1);">
@@ -8366,23 +8409,28 @@ function renderInstitutionGroupedList(institutions, filter) {
     }).join('');
 }
 
+// ---- Select by key (index-based, avoids JSON-in-onclick) ----
+function selectInstitutionByKey(key) {
+    const inst = window._instLookup && window._instLookup[key];
+    if (inst) selectInstitutionFromList(JSON.stringify(inst));
+}
+
 // ---- Select from grouped list ----
 function selectInstitutionFromList(jsonStr) {
     try {
-        const inst = JSON.parse(jsonStr);
+        const inst = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
         const input = document.getElementById('hospitalInput');
         if (input) input.value = inst.name;
         const btn = document.getElementById('hospitalConfirmBtn');
         if (btn) btn.disabled = false;
-        // Store full object for later use
         STATE._pendingHospitalObj = inst;
-        // Highlight selected row
+        // Highlight selected
         document.querySelectorAll('#hospitalGroupedList .hospital-suggestion').forEach(el => {
-            el.style.background = el.querySelector('div')?.textContent?.trim().startsWith(inst.name) ? 'rgba(41,121,255,0.12)' : '';
+            el.style.background = '';
         });
         const suggestions = document.getElementById('hospitalSuggestions');
         if (suggestions) suggestions.classList.add('hidden');
-    } catch(e) {}
+    } catch(e) { console.warn('selectInstitutionFromList error:', e); }
 }
 
 // ---- Filter suggestions (search box) ----
@@ -8407,9 +8455,15 @@ function renderHospitalSuggestions(list) {
     const el = document.getElementById('hospitalSuggestions');
     if (!el) return;
     if (!list.length) { el.classList.add('hidden'); return; }
-    el.innerHTML = list.map(i =>
-        `<div class="hospital-suggestion" onclick="selectInstitutionFromList('${escapeAttr(JSON.stringify(i))}')">${escapeHTML(i.name)}${i.city ? ' <span style="font-size:10px;color:#5a7aaa;">— '+escapeHTML(i.city)+'</span>' : ''}</div>`
-    ).join('');
+    // Register in lookup
+    if (!window._instLookup) window._instLookup = {};
+    el.innerHTML = list.map(i => {
+        const key = 'inst_sugg_' + (i.id || i.name.replace(/\W/g,''));
+        window._instLookup[key] = i;
+        return `<div class="hospital-suggestion" onclick="selectInstitutionByKey('${key}')">
+            ${escapeHTML(i.name)}${i.city ? ' <span style="font-size:10px;color:#5a7aaa;">— '+escapeHTML(i.city)+'</span>' : ''}
+        </div>`;
+    }).join('');
     el.classList.remove('hidden');
 }
 
@@ -9464,7 +9518,7 @@ Object.assign(window, {
     analyseAndRegisterGap, renderGapQueue, updateGapChip,
     renderGapQueue, renderCommandCentre, calculateGapScore,
     showHospitalModal, confirmHospital, skipHospital, changeHospital,
-    selectHospital, selectInstitutionFromList, filterHospitalSuggestions,
+    selectHospital, selectInstitutionFromList, selectInstitutionByKey, filterHospitalSuggestions,
     showNewInstitutionForm, cancelNewInstitution, validateNewInstitution, saveNewInstitution,
     toggleBookmark, isBookmarked,
     requestWriteMode, confirmWriteMode, closeWriteModeModal, toggleWritePINVisibility,
