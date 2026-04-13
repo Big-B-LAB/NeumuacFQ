@@ -10,7 +10,67 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CDN removed — replaced with minimal inline utilities -->
+    <style>
+        /* Minimal utility layer — covers all Tailwind classes actually used in this file */
+        .flex { display: flex; }
+        .flex-1 { flex: 1 1 0%; }
+        .hidden { display: none !important; }
+        .block { display: block; }
+        .inline { display: inline; }
+        .inline-flex { display: inline-flex; }
+        .grid { display: grid; }
+        .relative { position: relative; }
+        .absolute { position: absolute; }
+        .fixed { position: fixed; }
+        .sticky { position: sticky; }
+        .items-center { align-items: center; }
+        .items-start { align-items: flex-start; }
+        .justify-center { justify-content: center; }
+        .justify-between { justify-content: space-between; }
+        .justify-end { justify-content: flex-end; }
+        .gap-2 { gap: 8px; }
+        .gap-3 { gap: 12px; }
+        .gap-4 { gap: 16px; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-xs { font-size: 12px; line-height: 1.4; }
+        .text-sm { font-size: 14px; line-height: 1.5; }
+        .text-4xl { font-size: 36px; line-height: 1.1; }
+        .font-medium { font-weight: 500; }
+        .font-semibold { font-weight: 600; }
+        .font-mono { font-family: 'IBM Plex Mono', monospace; }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .text-gray-400 { color: #9ca3af; }
+        .text-gray-500 { color: #6b7280; }
+        .text-gray-600 { color: #4b5563; }
+        .text-gray-700 { color: #374151; }
+        .text-gray-900 { color: #111827; }
+        .text-mono { font-family: 'IBM Plex Mono', monospace; }
+        .bg-gray-50 { background-color: #f9fafb; }
+        .rounded-lg { border-radius: 8px; }
+        .px-3 { padding-left: 12px; padding-right: 12px; }
+        .py-2 { padding-top: 8px; padding-bottom: 8px; }
+        .py-10 { padding-top: 40px; padding-bottom: 40px; }
+        .py-12 { padding-top: 48px; padding-bottom: 48px; }
+        .mb-2 { margin-bottom: 8px; }
+        .mb-3 { margin-bottom: 12px; }
+        .mb-6 { margin-bottom: 24px; }
+        .mt-1 { margin-top: 4px; }
+        .mt-2 { margin-top: 8px; }
+        .mt-3 { margin-top: 12px; }
+        .mt-6 { margin-top: 24px; }
+        .mr-1 { margin-right: 4px; }
+        .mr-2 { margin-right: 8px; }
+        .pl-dot { padding-left: 12px; }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+        .opacity-40 { opacity: 0.4; }
+        .transition { transition: all 0.15s ease; }
+        .cursor-pointer { cursor: pointer; }
+        .w-full { width: 100%; }
+        .overflow-hidden { overflow: hidden; }
+        .overflow-y-auto { overflow-y: auto; }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
@@ -9718,8 +9778,8 @@ function initSearch() {
     input.addEventListener('input', function() {
         const val = this.value;
         clear?.classList.toggle('hidden', !val);
+        KB.highlightIndex = -1; // reset keyboard highlight on input change
 
-        // Fast debounce — updates the UI list (180ms) + dropdown
         clearTimeout(STATE.ui.searchTimeout);
         STATE.ui.searchTimeout = setTimeout(() => {
             STATE.view.searchQuery = val;
@@ -9733,8 +9793,6 @@ function initSearch() {
             }
         }, CONFIG.UI.SEARCH_DELAY);
 
-        // Slow debounce — logs the search only when user settles (1200ms)
-        // Prevents every keystroke from polluting search_logs
         clearTimeout(STATE.ui.logTimeout);
         STATE.ui.logTimeout = setTimeout(() => {
             const r = STATE.searchIntelligence._lastResult;
@@ -9745,48 +9803,11 @@ function initSearch() {
     });
 
     input.addEventListener('keydown', e => {
-        if (e.key === 'Escape') { clearSearch(); }
-        if (e.key === 'Enter') {
-            // On Enter — log immediately, don't wait for slow debounce
-            clearTimeout(STATE.ui.logTimeout);
-            STATE.view.searchQuery = input.value;
-            applyFilterChain();
-            const r = STATE.searchIntelligence._lastResult;
-            if (r && input.value.trim().length >= CONFIG.UI.MIN_SEARCH_CHARS) {
-                logSearch(r.query, r.isHit, r.matchedField, r.matchedVariantId);
-            }
-        }
-    });
+        // Escape — clear search
+        if (e.key === 'Escape') { clearSearch(); return; }
 
-    document.addEventListener('keydown', e => {
-        if (e.key === '/' && !e.ctrlKey && !e.metaKey && 
-            !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
-            e.preventDefault(); input.focus();
-        }
-    });
-}
-
-// ================================================================
-// IMPROVEMENT 1 — FULL KEYBOARD NAVIGATION
-// ↑↓  navigate variant list    Enter  select highlighted
-// /   focus search (any ctx)   Escape clear / close
-// ⌘K  command palette          ←→    back/forward history
-// ================================================================
-
-const KB = {
-    highlightIndex: -1,  // which row in current page is keyboard-highlighted
-};
-
-// Upgrade initSearch to wire ↑↓ Enter on the search input
-const _origInitSearch = initSearch;
-function initSearch() {
-    _origInitSearch();
-    const input = document.getElementById('searchInput');
-    if (!input) return;
-
-    // Remove old keydown listener and replace with upgraded version
-    input.addEventListener('keydown', e => {
-        const page  = STATE.view.filteredVariants.slice(
+        // ↑↓ arrow keys — navigate variant list
+        const page = STATE.view.filteredVariants.slice(
             (STATE.view.currentPage - 1) * CONFIG.UI.ITEMS_PER_PAGE,
             STATE.view.currentPage * CONFIG.UI.ITEMS_PER_PAGE
         );
@@ -9794,20 +9815,48 @@ function initSearch() {
             e.preventDefault();
             KB.highlightIndex = Math.min(KB.highlightIndex + 1, page.length - 1);
             kbHighlightRow(KB.highlightIndex);
-        } else if (e.key === 'ArrowUp') {
+            return;
+        }
+        if (e.key === 'ArrowUp') {
             e.preventDefault();
             KB.highlightIndex = Math.max(KB.highlightIndex - 1, 0);
             kbHighlightRow(KB.highlightIndex);
-        } else if (e.key === 'Enter' && KB.highlightIndex >= 0 && page[KB.highlightIndex]) {
-            e.preventDefault();
-            selectVariant(page[KB.highlightIndex].legacy_name, true);
-            KB.highlightIndex = -1;
+            return;
+        }
+
+        // Enter — select highlighted row OR log search
+        if (e.key === 'Enter') {
+            if (KB.highlightIndex >= 0 && page[KB.highlightIndex]) {
+                e.preventDefault();
+                selectVariant(page[KB.highlightIndex].legacy_name, true);
+                KB.highlightIndex = -1;
+            } else {
+                clearTimeout(STATE.ui.logTimeout);
+                STATE.view.searchQuery = input.value;
+                applyFilterChain();
+                const r = STATE.searchIntelligence._lastResult;
+                if (r && input.value.trim().length >= CONFIG.UI.MIN_SEARCH_CHARS) {
+                    logSearch(r.query, r.isHit, r.matchedField, r.matchedVariantId);
+                }
+            }
         }
     });
 
-    // Reset highlight when input changes
-    input.addEventListener('input', () => { KB.highlightIndex = -1; });
+    document.addEventListener('keydown', e => {
+        if (e.key === '/' && !e.ctrlKey && !e.metaKey &&
+            !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
+            e.preventDefault(); input.focus();
+        }
+    });
 }
+
+// ================================================================
+// KEYBOARD NAVIGATION STATE
+// ================================================================
+
+const KB = {
+    highlightIndex: -1,
+};
 
 function kbHighlightRow(idx) {
     // Remove previous highlight
@@ -15272,6 +15321,302 @@ async function helixBatchValidate() {
 
 Object.assign(window, { helixToggleBatchMode, helixToggleBatchSelect, helixBatchValidate, helixUpdateBatchBar });
 
+// ================================================================
+// IMPROVEMENT A — REAL-TIME SUPABASE SUBSCRIPTIONS
+// ================================================================
+
+const REALTIME = {
+    ws: null, connectedSessions: 1,
+    reconnectDelay: 1000, maxDelay: 30000,
+    _heartbeat: null, _reconnectTimer: null,
+};
+
+function helixRealtimeConnect() {
+    const wsUrl = CONFIG.SUPABASE.URL
+        .replace('https://', 'wss://').replace('http://', 'ws://') +
+        '/realtime/v1/websocket?apikey=' + CONFIG.SUPABASE.KEY + '&vsn=1.0.0';
+    if (REALTIME.ws && REALTIME.ws.readyState <= 1) return;
+    try { REALTIME.ws = new WebSocket(wsUrl); } catch(e) {
+        helixRealtimeScheduleReconnect(); return;
+    }
+    REALTIME.ws.onopen = () => {
+        REALTIME.reconnectDelay = 1000;
+        helixRealtimeUpdateIndicator('connected');
+        ['validation_history','helios_pending_review','variants'].forEach(table => {
+            REALTIME.ws.send(JSON.stringify({
+                topic: `realtime:public:${table}`, event: 'phx_join',
+                payload: { config: { broadcast: { self: false } } }, ref: table
+            }));
+        });
+        REALTIME._heartbeat = setInterval(() => {
+            if (REALTIME.ws?.readyState === 1)
+                REALTIME.ws.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: null }));
+        }, 30000);
+    };
+    REALTIME.ws.onmessage = (evt) => {
+        try { helixRealtimeHandleMessage(JSON.parse(evt.data)); } catch {}
+    };
+    REALTIME.ws.onclose = () => {
+        clearInterval(REALTIME._heartbeat);
+        helixRealtimeUpdateIndicator('disconnected');
+        helixRealtimeScheduleReconnect();
+    };
+}
+
+function helixRealtimeScheduleReconnect() {
+    clearTimeout(REALTIME._reconnectTimer);
+    REALTIME._reconnectTimer = setTimeout(helixRealtimeConnect, REALTIME.reconnectDelay);
+    REALTIME.reconnectDelay = Math.min(REALTIME.reconnectDelay * 2, REALTIME.maxDelay);
+}
+
+function helixRealtimeHandleMessage(msg) {
+    const { topic, event, payload } = msg;
+    if (!topic || !event) return;
+
+    if (topic.includes('validation_history') && event === 'INSERT') {
+        const rec = payload?.record;
+        if (rec?.variant_id) {
+            const v = STATE.variants.find(x => x.id === rec.variant_id);
+            if (v) {
+                v.validation_count = (v.validation_count || 0) + 1;
+                v.last_validator_name = rec.clinician_name;
+                v.last_validator_role = rec.clinician_role;
+                v.last_validated_at   = rec.created_at;
+                calculateMasterStats(); updateHeaderStats(); updateFilterChips();
+                if (STATE.view.selectedVariant?.id === rec.variant_id) renderVariantDetail(v);
+                showNotification(`${rec.clinician_name || 'A clinician'} validated ${v.legacy_name}`, 'success', 3000);
+                helixRealtimePulse();
+            }
+        }
+    }
+
+    if (topic.includes('helios_pending_review') && event === 'INSERT') {
+        const rec = payload?.record;
+        if (rec && !HELIOS.pendingItems.find(i => i.id === rec.id)) {
+            HELIOS.pendingItems.unshift(rec);
+            heliosUpdateBadge();
+            showNotification(`Helios: ${rec.priority || 'ROUTINE'} — ${rec.variant_name || rec.item_type}`,
+                rec.priority === 'URGENT' ? 'warning' : 'info', 4000);
+            helixRealtimePulse();
+        }
+    }
+
+    if (topic.includes(':variants') && (event === 'UPDATE' || event === 'INSERT')) {
+        const rec = payload?.record;
+        if (!rec?.id) return;
+        const existing = STATE.variantsById.get(rec.id);
+        if (existing && event === 'UPDATE') {
+            Object.assign(existing, rec);
+            buildSearchIndex(); calculateMasterStats(); updateHeaderStats();
+            if (STATE.view.selectedVariant?.id === rec.id) { STATE.view.selectedVariant = existing; renderVariantDetail(existing); }
+            renderVariantList();
+        } else if (!existing && event === 'INSERT') {
+            STATE.variants.push(rec);
+            STATE.variantsById.set(rec.id, rec);
+            STATE.variantsByLegacyName.set(rec.legacy_name, rec);
+            buildSearchIndex(); calculateMasterStats(); updateHeaderStats(); updateFilterChips(); renderVariantList();
+            showNotification(`New variant added: ${rec.legacy_name}`, 'info', 3500);
+        }
+        helixRealtimePulse();
+    }
+}
+
+function helixRealtimeUpdateIndicator(state) {
+    const dot = document.getElementById('helixRealtimeDot');
+    const lbl = document.getElementById('helixRealtimeStatus');
+    if (!dot) return;
+    dot.style.background  = state === 'connected' ? '#34d399' : '#f87171';
+    dot.style.boxShadow   = state === 'connected' ? '0 0 6px rgba(52,211,153,0.6)' : '0 0 4px rgba(248,113,113,0.4)';
+    if (lbl) lbl.textContent = state === 'connected' ? 'Live' : 'Offline';
+}
+
+function helixRealtimePulse() {
+    const dot = document.getElementById('helixRealtimeDot');
+    if (!dot) return;
+    dot.style.transform = 'scale(1.8)';
+    setTimeout(() => { dot.style.transform = 'scale(1)'; }, 300);
+}
+
+function helixRealtimeInjectIndicator() {
+    const ha = document.querySelector('.header-actions');
+    if (!ha || document.getElementById('helixRealtimeIndicator')) return;
+    const el = document.createElement('div');
+    el.id = 'helixRealtimeIndicator';
+    Object.assign(el.style, { display:'flex', alignItems:'center', gap:'5px',
+        padding:'4px 10px', borderRadius:'6px', background:'rgba(255,255,255,0.03)',
+        border:'1px solid rgba(99,140,210,0.12)', userSelect:'none' });
+    el.title = 'Real-time sync status';
+    el.innerHTML = `
+        <div id="helixRealtimeDot" style="width:6px;height:6px;border-radius:50%;background:#f87171;transition:all .3s;flex-shrink:0;"></div>
+        <span id="helixRealtimeStatus" style="font-size:10px;font-family:var(--font-mono);color:var(--text-tertiary);">Connecting</span>`;
+    ha.insertBefore(el, ha.firstChild);
+}
+
+Object.assign(window, { helixRealtimeConnect, helixRealtimeInjectIndicator });
+
+// ================================================================
+// IMPROVEMENT B — DUPLICATE DETECTION ON IMPORT
+// ================================================================
+
+function helixCheckDuplicates(legacyName, proteinName, cdnaName) {
+    if (!legacyName || legacyName.length < 2) return [];
+    const norm = s => normaliseQuery(s || '');
+    const namesToCheck = [legacyName, proteinName, cdnaName].filter(Boolean);
+    const dupes = []; const seen = new Set();
+    for (const v of STATE.variants) {
+        if (seen.has(v.id)) continue;
+        const vNames = [v.legacy_name, v.protein_name, v.cdna_name, ...(v.alt_names?.split(/[,;\s]+/) || [])].filter(Boolean);
+        if (namesToCheck.some(n => vNames.some(vn => vn.toLowerCase() === n.toLowerCase()))) {
+            dupes.push({ variant: v, confidence: 'exact', reason: 'Exact name match' }); seen.add(v.id); continue;
+        }
+        const d = levenshtein(norm(legacyName), norm(v.legacy_name));
+        if (d > 0 && d <= 2 && norm(legacyName).length >= 3 && Math.abs(norm(legacyName).length - norm(v.legacy_name).length) <= 2) {
+            dupes.push({ variant: v, confidence: 'fuzzy', reason: `Similar name (${d} char${d>1?'s':''} different)` }); seen.add(v.id);
+        }
+    }
+    return dupes.slice(0, 4);
+}
+
+function helixShowDuplicateWarning(dupes, onConfirm) {
+    document.getElementById('helixDupWarning')?.remove();
+    if (!dupes.length) { onConfirm(); return; }
+    const overlay = document.createElement('div');
+    overlay.id = 'helixDupWarning';
+    Object.assign(overlay.style, { position:'fixed', inset:'0', zIndex:'999998',
+        background:'rgba(4,8,15,0.82)', backdropFilter:'blur(8px)',
+        display:'flex', alignItems:'center', justifyContent:'center', animation:'fadeIn 150ms ease' });
+    const items = dupes.map(d => `
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);">
+            <div style="width:8px;height:8px;border-radius:50%;background:${d.confidence==='exact'?'#f87171':'#fbbf24'};flex-shrink:0;"></div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary);">${escapeHTML(d.variant.legacy_name)}</div>
+                <div style="font-size:11px;color:var(--text-tertiary);">${escapeHTML(d.reason)} · ${d.variant.cftr_class?'Class '+d.variant.cftr_class:'No class'} · ${d.variant.eti_prediction||'ETI unknown'}</div>
+            </div>
+            <button onclick="closeImportModal();document.getElementById('helixDupWarning').remove();selectVariant('${escapeAttr(d.variant.legacy_name)}')"
+                style="padding:4px 10px;border-radius:5px;border:1px solid rgba(41,121,255,0.25);background:none;color:var(--brand);font-size:11px;cursor:pointer;font-family:var(--font-body);white-space:nowrap;">View →</button>
+        </div>`).join('');
+    overlay.innerHTML = `
+        <div style="width:min(520px,92vw);background:#0d1526;border:1px solid rgba(248,113,113,0.3);border-radius:14px;box-shadow:0 24px 64px rgba(0,5,20,0.85);overflow:hidden;">
+            <div style="padding:18px 20px 14px;border-bottom:1px solid rgba(99,140,210,0.13);">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                    <i class="fas fa-exclamation-triangle" style="color:#fbbf24;font-size:14px;"></i>
+                    <div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text-primary);">Possible duplicates found</div>
+                </div>
+                <div style="font-size:12px;color:var(--text-tertiary);">Review these existing variants before saving.</div>
+            </div>
+            <div style="max-height:280px;overflow-y:auto;">${items}</div>
+            <div style="display:flex;gap:10px;padding:14px 20px;border-top:1px solid rgba(99,140,210,0.1);">
+                <button onclick="document.getElementById('helixDupWarning').remove()" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(99,140,210,0.2);background:none;color:var(--text-secondary);font-size:12.5px;cursor:pointer;font-family:var(--font-body);">← Go back</button>
+                <button onclick="document.getElementById('helixDupWarning').remove();(${onConfirm.toString()})()" style="flex:2;padding:9px;border-radius:8px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);color:#fca5a5;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font-body);">
+                    <i class="fas fa-save" style="margin-right:5px;"></i>Save anyway — it's a different variant
+                </button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+}
+
+const _origSubmitManualForm = submitManualForm;
+async function submitManualForm() {
+    if (!isWriteMode()) { requireWriteMode(() => submitManualForm(), 'Enter PIN to create a new variant'); return; }
+    const legacyName  = document.getElementById('formLegacyName')?.value.trim();
+    const proteinName = document.getElementById('formProteinName')?.value.trim();
+    const cdnaName    = document.getElementById('formCdnaName')?.value.trim();
+    if (!legacyName) { showNotification('Legacy name is required', 'error'); return; }
+    const dupes = helixCheckDuplicates(legacyName, proteinName, cdnaName);
+    dupes.length > 0 ? helixShowDuplicateWarning(dupes, _origSubmitManualForm) : _origSubmitManualForm();
+}
+Object.assign(window, { submitManualForm, helixCheckDuplicates, helixShowDuplicateWarning });
+
+// ================================================================
+// IMPROVEMENT C — CHART DRILL-DOWN
+// ================================================================
+
+function helixChartDrillFilter(type, value, label) {
+    let filtered = STATE.variants;
+    if (type === 'class')    filtered = STATE.variants.filter(v => v.cftr_class === value);
+    else if (type === 'eti_responsive')    filtered = STATE.variants.filter(v => v.eti_prediction === 'responsive');
+    else if (type === 'eti_nonresponsive') filtered = STATE.variants.filter(v => v.eti_prediction === 'non_responsive');
+    else if (type === 'eti_unknown')       filtered = STATE.variants.filter(v => !v.eti_prediction || v.eti_prediction === 'unknown');
+    else if (type === 'complete')  filtered = STATE.variants.filter(v => v.cftr_class && v.eti_prediction && v.protein_name && v.cdna_name && v.final_determination);
+    else if (type === 'partial')   filtered = STATE.variants.filter(v => { const s=[v.cftr_class,v.eti_prediction,v.protein_name,v.cdna_name].filter(Boolean).length; return s>=2&&s<4; });
+    else if (type === 'minimal')   filtered = STATE.variants.filter(v => !v.cftr_class || !v.eti_prediction || !v.protein_name);
+    STATE.view.filteredVariants = filtered;
+    STATE.view.currentPage = 1; STATE.view.searchQuery = '';
+    const inp = document.getElementById('searchInput'); if (inp) inp.value = '';
+    renderVariantList(); updateFilterChips();
+    showNotification(`Filtered: ${label} (${filtered.length} variant${filtered.length!==1?'s':''})`, 'info', 3000);
+}
+
+const _origRenderCharts = renderCharts;
+function renderCharts() {
+    _origRenderCharts();
+
+    // Drill-down tooltip style
+    const drillTip = { callbacks: {
+        label: ctx => ctx.dataset.label
+            ? ` ${ctx.dataset.label}: ${ctx.parsed.y ?? ctx.parsed.x ?? ctx.raw} — click to filter`
+            : ` ${ctx.label}: ${ctx.raw} — click to filter`
+    }};
+
+    setTimeout(() => {
+        // Class doughnut
+        const cc = document.getElementById('classChart');
+        if (cc?._chart) {
+            cc.style.cursor = 'pointer';
+            cc.title = 'Click a segment to filter by class';
+            cc._chart.options.plugins.tooltip.callbacks = drillTip.callbacks;
+            cc._chart.update('none');
+            cc.onclick = evt => {
+                const pts = cc._chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, false);
+                if (!pts.length) return;
+                const label = cc._chart.data.labels[pts[0].index];
+                closeDashboard();
+                setTimeout(() => helixChartDrillFilter('class', label, `Class ${label}`), 150);
+            };
+        }
+        // ETI response bar
+        const rc = document.getElementById('responseChart');
+        if (rc?._chart) {
+            rc.style.cursor = 'pointer';
+            rc.title = 'Click a bar to filter by ETI status';
+            rc._chart.options.plugins.tooltip.callbacks = drillTip.callbacks;
+            rc._chart.update('none');
+            rc.onclick = evt => {
+                const pts = rc._chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, false);
+                if (!pts.length) return;
+                const label = rc._chart.data.labels[pts[0].index];
+                const typeMap = { 'Responsive':'eti_responsive','Non-responsive':'eti_nonresponsive','Unknown':'eti_unknown' };
+                closeDashboard();
+                setTimeout(() => helixChartDrillFilter(typeMap[label] || 'eti_responsive', null, label), 150);
+            };
+        }
+        // Completeness bar
+        const mc = document.getElementById('completionChart');
+        if (mc?._chart) {
+            mc.style.cursor = 'pointer';
+            mc.title = 'Click a bar to filter by data completeness';
+            mc._chart.options.plugins.tooltip.callbacks = drillTip.callbacks;
+            mc._chart.update('none');
+            mc.onclick = evt => {
+                const pts = mc._chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, false);
+                if (!pts.length) return;
+                const label = mc._chart.data.labels[pts[0].index];
+                const typeMap = { 'Complete':'complete','Partial':'partial','Minimal':'minimal' };
+                closeDashboard();
+                setTimeout(() => helixChartDrillFilter(typeMap[label] || 'complete', null, label), 150);
+            };
+        }
+    }, 200);
+}
+Object.assign(window, { renderCharts, helixChartDrillFilter });
+
+// ================================================================
+// INIT — Start realtime after app loads
+// ================================================================
+document.addEventListener('DOMContentLoaded', () => {
+    helixRealtimeInjectIndicator();
+    setTimeout(helixRealtimeConnect, 2500);
+});
 </script>
 </body>
 </html>
