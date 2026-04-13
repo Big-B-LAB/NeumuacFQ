@@ -66,6 +66,7 @@
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
         .opacity-40 { opacity: 0.4; }
         .transition { transition: all 0.15s ease; }
+        @keyframes neuPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
         .cursor-pointer { cursor: pointer; }
         .w-full { width: 100%; }
         .overflow-hidden { overflow: hidden; }
@@ -4540,6 +4541,8 @@
                 <button class="si-tab" id="siTab-recent" onclick="setSITab('recent',this)">Session</button>
                 <button class="si-tab" id="siTab-geo" onclick="setSITab('geo',this)"><i class="fas fa-map-marker-alt" style="font-size: 11px;margin-right:4px;"></i>Geography</button>
                 <button class="si-tab" id="siTab-gaps" onclick="setSITab('gaps',this)"><i class="fas fa-exclamation-triangle" style="font-size: 11px;margin-right:4px;color:#fbbf24;"></i>Gap queue</button>
+                <button class="si-tab" id="siTab-heatmap" onclick="setSITab('heatmap',this)"><i class="fas fa-th" style="font-size:11px;margin-right:4px;"></i>Velocity</button>
+                <button class="si-tab" id="siTab-cosearch" onclick="setSITab('cosearch',this)"><i class="fas fa-project-diagram" style="font-size:11px;margin-right:4px;"></i>Co-search</button>
             </div>
 
             <div id="siPanelOverview" class="si-panel active">
@@ -4781,6 +4784,21 @@
                 </div>
             </div>
 
+            <div id="siPanelHeatmap" class="si-panel" style="display:none;">
+                <div style="padding:16px 20px 8px;">
+                    <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Search velocity heatmap</div>
+                    <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;">Hour of day × day of week — intensity = search volume from DB logs</div>
+                    <div id="velocityHeatmapContainer" style="overflow-x:auto;"></div>
+                    <div id="velocityHeatmapNote" style="font-size:11px;color:var(--text-tertiary);margin-top:8px;"></div>
+                </div>
+            </div>
+            <div id="siPanelCosearch" class="si-panel" style="display:none;">
+                <div style="padding:16px 20px 8px;">
+                    <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Co-search clusters</div>
+                    <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;">Variants searched together in the same session — potential compound het pairs</div>
+                    <div id="coSearchContainer"></div>
+                </div>
+            </div>
             <div id="siPanelRecent" class="si-panel" style="display:none;">
                 <div class="si-body">
                     <div class="si-card">
@@ -5853,7 +5871,7 @@ function searchVariants(query) {
         return STATE.variants;
     }
     const raw      = query.toLowerCase().trim();
-    const norm     = normaliseQuery(query);
+    const norm     = normaliseQueryTracked(query); // tracked version records steps for UI
     const stripped = norm.replace(/^p\.|^c\.|^r\./, '');
     const phonetic = _phoneticKey(stripped);
 
@@ -5992,38 +6010,87 @@ async function fetchLocationOnce() {
     return si.locationCache;
 }
 
-// ---- Query normalisation — called before any search log write ----
+// ---- Query normalisation v2 — full HGVS + clinical nomenclature coverage ----
+// Area 1: All 20 amino acids (mid-string), termination codons, splice notation,
+// IVS notation, rsID passthrough, chromosomal position stripping, canonical aliases.
+
+const AA3TO1 = {
+    ala:'a', arg:'r', asn:'n', asp:'d', cys:'c', gln:'q', glu:'e', gly:'g',
+    his:'h', ile:'i', leu:'l', lys:'k', met:'m', phe:'f', pro:'p', ser:'s',
+    thr:'t', trp:'w', tyr:'y', val:'v',
+    // Termination codon synonyms — all → 'x'
+    ter:'x', stop:'x', opal:'x', amber:'x', ochre:'x'
+};
+
+// Expose the transformation steps so the UI can show "Phe508del → f508del"
+function normaliseQueryWithSteps(q) {
+    let s = (q || '').trim();
+    const steps = [];
+
+    // 0. Preserve rsID — pass through unchanged
+    if (/^rs\d+$/i.test(s)) return { norm: s.toLowerCase(), steps: ['rsID — passed through'] };
+
+    // 1. Strip chromosomal position prefix chr7:117,xxx,xxx or 7:117xxx
+    if (/^(?:chr)?7[:\s]/i.test(s)) {
+        s = s.replace(/^(?:chr)?7[:\s][\d,\.]+/i, '').trim();
+        steps.push('chromosomal position stripped');
+    }
+
+    // 2. Normalise Greek/special chars
+    const before2 = s;
+    s = s.replace(/δ/g, 'del').replace(/Δ/g, 'del');
+    if (s !== before2) steps.push('δ→del');
+
+    // 3. Strip HGVS prefixes (p. c. r. m. n.) — keep for field matching but strip for index lookup
+    s = s.replace(/^[pcrmn]\./i, '');
+
+    // 4. IVS notation → c. equivalent key (IVS8+5G>T → ivs8+5g>t normalised as-is for index)
+    const before4 = s;
+    s = s.replace(/^IVS/i, 'ivs');
+    if (s !== before4) steps.push('IVS notation normalised');
+
+    // 5. Three-letter amino acids — mid-string replacement (all 20 + stop codons)
+    const before5 = s;
+    s = s.toLowerCase().replace(/ala|arg|asn|asp|cys|gln|glu|gly|his|ile|leu|lys|met|phe|pro|ser|thr|trp|tyr|val|ter|stop|opal|amber|ochre/gi,
+        m => AA3TO1[m.toLowerCase()] || m);
+    if (s !== before5.toLowerCase()) steps.push(`three-letter AA → single letter`);
+    else s = s.toLowerCase();
+
+    // 6. Remove spaces and hyphens inside variant names
+    const before6 = s;
+    s = s.replace(/[-\s]+/g, '').replace(/>\s*/g, '>').replace(/\s*>/g, '>');
+    if (s !== before6) steps.push('spacing normalised');
+
+    // 7. Canonical aliases — common clinical typing patterns
+    const aliases = {
+        'deltaf508':'f508del', 'deltaf508del':'f508del', 'delta-f508':'f508del',
+        'phef508del':'f508del', 'phe508del':'f508del',
+        'df508':'f508del', 'δf508':'f508del',
+        'cf508del':'f508del',     // common typo
+        'w1282stop':'w1282x', 'w1282ter':'w1282x',
+        'g542stop':'g542x',   'g542ter':'g542x',
+        'r553stop':'r553x',   'r553ter':'r553x',
+        'r1162stop':'r1162x', 'r1162ter':'r1162x',
+        'y122stop':'y122x',   'y122ter':'y122x',
+    };
+    if (aliases[s]) {
+        steps.push(`alias: ${s} → ${aliases[s]}`);
+        s = aliases[s];
+    }
+
+    return { norm: s, steps };
+}
+
 function normaliseQuery(q) {
-    return (q || '')
-        .toLowerCase()
-        .trim()
-        // Normalise Greek delta to "del"
-        .replace(/δ/g, 'del')
-        // Remove hyphens and spaces (e.g. "G551 D" → "g551d", "R117-H" → "r117h")
-        .replace(/[-\s]+/g, '')
-        // Normalise common HGVS spacing
-        .replace(/>\s*/g, '>')
-        .replace(/\s*>/g, '>')
-        // Three-letter amino acid → single letter (most common CFTR variants)
-        .replace(/^phe/i, 'f')    // Phe508del → f508del
-        .replace(/^gly/i, 'g')    // Gly551Asp → g551d
-        .replace(/^arg/i, 'r')    // Arg117His → r117h
-        .replace(/^trp/i, 'w')    // Trp1282X  → w1282x
-        .replace(/^asn/i, 'n')    // Asn1303Lys → n1303k
-        .replace(/^asp/i, 'd')
-        .replace(/^his/i, 'h')
-        .replace(/^lys/i, 'k')
-        .replace(/^leu/i, 'l')
-        .replace(/^pro/i, 'p')
-        .replace(/^thr/i, 't')
-        .replace(/^val/i, 'v')
-        .replace(/^ile/i, 'i')
-        .replace(/^ser/i, 's')
-        // Canonical aliases
-        .replace(/^deltaf508$/, 'f508del')
-        .replace(/^delta-f508$/, 'f508del')
-        .replace(/^phe508del$/, 'f508del')
-        .replace(/^phef508del$/, 'f508del');
+    return normaliseQueryWithSteps(q).norm;
+}
+
+// Expose last normalisation steps for UI display
+let _lastNormSteps = [];
+function normaliseQueryTracked(q) {
+    const result = normaliseQueryWithSteps(q);
+    _lastNormSteps = result.steps;
+    return result.norm;
 }
 
 // ---- Levenshtein distance — fast implementation for short strings ----
@@ -7610,6 +7677,8 @@ function selectVariant(name, fromSearch) {
     if (!variant) return;
     STATE.view.selectedVariant = variant;
     helixHistoryPush(variant);
+    // Area 4: save to cross-session search history
+    saveToSearchHistory(name, variant.id, variant.legacy_name);
     helixHideMissAction();
     helixResetDetailEmpty();     // ← reset not-found state in main panel
     renderVariantList(); // update selection highlight
@@ -9115,7 +9184,7 @@ function setDashTab(tab, btn) {
 }
 
 function setSITab(name, btn) {
-    ['overview','misses','recent','geo','gaps'].forEach(t => {
+    ['overview','misses','recent','geo','gaps','heatmap','cosearch'].forEach(t => {
         const panel = 'siPanel' + t.charAt(0).toUpperCase() + t.slice(1);
         const el = document.getElementById(panel);
         if (!el) return;
@@ -9134,8 +9203,10 @@ function setSITab(name, btn) {
     });
     document.querySelectorAll('.si-tab').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
-    if (name === 'geo')  renderGeoTab();
-    else if (name === 'gaps') renderGapQueue();
+    if (name === 'geo')          renderGeoTab();
+    else if (name === 'gaps')    renderGapQueue();
+    else if (name === 'heatmap') renderVelocityHeatmap();
+    else if (name === 'cosearch')renderCoSearchClusters();
     else populateSITab(name);
 }
 
@@ -10729,65 +10800,243 @@ function updateIntelStrip(variant, gap) {
 
 // ========== SEARCH DROPDOWN ==========
 
+// ---- Match character highlighting — wraps matched substring in <mark> ----
+function highlightMatch(text, query) {
+    if (!text || !query) return escapeHTML(text || '');
+    const norm  = query.toLowerCase().replace(/^[pcrmn]\./, '').replace(/[-\s]/g,'');
+    const lower = text.toLowerCase();
+    // Try exact substring match first
+    const idx = lower.indexOf(norm);
+    if (idx !== -1 && norm.length >= 2) {
+        return escapeHTML(text.slice(0, idx))
+            + `<mark style="background:rgba(41,121,255,0.25);color:#93c5fd;border-radius:2px;padding:0 1px;">${escapeHTML(text.slice(idx, idx + norm.length))}</mark>`
+            + escapeHTML(text.slice(idx + norm.length));
+    }
+    // Fallback: highlight positional number if searching by number
+    const numMatch = query.match(/\d{3,}/);
+    if (numMatch) {
+        const numIdx = lower.indexOf(numMatch[0]);
+        if (numIdx !== -1) {
+            return escapeHTML(text.slice(0, numIdx))
+                + `<mark style="background:rgba(41,121,255,0.25);color:#93c5fd;border-radius:2px;padding:0 1px;">${escapeHTML(text.slice(numIdx, numIdx + numMatch[0].length))}</mark>`
+                + escapeHTML(text.slice(numIdx + numMatch[0].length));
+        }
+    }
+    return escapeHTML(text);
+}
+
+const TIER_LABELS = ['exact','prefix','substring','fuzzy','phonetic'];
+const TIER_COLORS = ['#34d399','#60a5fa','#9ab8e0','#fbbf24','#c084fc'];
+
+// Area 5: live miss card state — tracks ongoing robotic scan per query
+const MISS_CARD_STATE = {};
+
 function updateSearchDropdown(query, results) {
     const dd = document.getElementById('searchDropdown');
     if (!dd) return;
     if (!query || query.length < CONFIG.UI.MIN_SEARCH_CHARS) {
         dd.classList.add('hidden'); return;
     }
+
+    const norm  = normaliseQuery(query);
+    const steps = _lastNormSteps || [];
+    // Area 2: show transformation pill if normalisation changed the query
+    const transformed = norm !== query.toLowerCase().replace(/[-\s]/g,'').replace(/^[pcrmn]\./, '');
+    const transformPill = (transformed && steps.length) ? `
+        <div style="padding:5px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <i class="fas fa-magic" style="font-size:9px;color:#7f77dd;"></i>
+            <span style="font-size:10px;color:var(--text-tertiary);">Searching as</span>
+            <code style="font-size:10px;color:#93c5fd;background:rgba(41,121,255,0.1);padding:1px 5px;border-radius:3px;">${escapeHTML(norm)}</code>
+            ${steps.map(s=>`<span style="font-size:9px;color:var(--text-tertiary);background:rgba(255,255,255,0.04);padding:1px 5px;border-radius:3px;">${escapeHTML(s)}</span>`).join('')}
+        </div>` : '';
+
     if (!results.length) {
-        // Show "not found" hint in the dropdown itself
+        // Area 5: LIVE MISS CARD — shows scan status, similar variants, institution signal
+        const missState = MISS_CARD_STATE[norm] || { status: 'scanning', papers: 0, clinvar: 0 };
+        const isScanning = ROBOTIC_SCAN_QUEUE.has(norm);
         const enc = encodeURIComponent(query.trim());
-        dd.innerHTML = `
-            <div style="padding:10px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);">
-                <i class="fas fa-search-minus" style="color:#f87171;font-size:12px;flex-shrink:0;"></i>
-                <span style="font-size:12px;color:var(--text-secondary);">
-                    <strong style="color:var(--text-primary);font-family:var(--font-mono);">"${escapeHTML(query)}"</strong> — not in database
-                </span>
+
+        // Find similar variants already in DB (Levenshtein ≤ 3)
+        const similar = STATE.variants
+            .map(v => ({ v, d: levenshtein(norm, normaliseQuery(v.legacy_name)) }))
+            .filter(x => x.d <= 3 && x.d > 0)
+            .sort((a,b) => a.d - b.d)
+            .slice(0, 3);
+
+        // How many other sessions searched this exact miss?
+        const missData = STATE.searchIntelligence.globalMisses.get(norm);
+        const otherSessions = missData ? Math.max(0, missData.sessions.size - 1) : 0;
+
+        dd.innerHTML = transformPill + `
+            <div style="padding:10px 12px 8px;border-bottom:1px solid var(--border);">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                    <i class="fas fa-search-minus" style="color:#f87171;font-size:11px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:600;color:var(--text-primary);font-family:var(--font-mono);">${escapeHTML(query)}</span>
+                    <span style="font-size:10px;color:var(--text-tertiary);">not in NeumuacACFG</span>
+                    ${otherSessions > 0 ? `<span style="margin-left:auto;font-size:10px;padding:1px 7px;border-radius:10px;background:rgba(251,191,36,0.1);color:#fbbf24;border:1px solid rgba(251,191,36,0.2);">${otherSessions} other session${otherSessions!==1?'s':''} searched this</span>` : ''}
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;
+                     background:${isScanning ? 'rgba(41,121,255,0.06)' : 'rgba(52,211,153,0.06)'};
+                     border:1px solid ${isScanning ? 'rgba(41,121,255,0.2)' : 'rgba(52,211,153,0.2)'};">
+                    ${isScanning ? `
+                        <div style="width:8px;height:8px;border-radius:50%;background:#2979ff;animation:neuPulse 1s ease-in-out infinite;flex-shrink:0;"></div>
+                        <span style="font-size:11px;color:#60a5fa;font-weight:600;">NeumuacACFG is searching PubMed · ClinVar · CFTR2 robotically…</span>
+                    ` : `
+                        <i class="fas fa-check-circle" style="color:#34d399;font-size:11px;flex-shrink:0;"></i>
+                        <span style="font-size:11px;color:#34d399;font-weight:600;">Robotic scan queued — check Helios inbox within 24h</span>
+                    `}
+                </div>
             </div>
-            <div style="padding:8px 12px 6px;">
-                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">Search externally</div>
-                ${[
-                    ['CFTR2',   `https://cftr2.org/mutation_details/${enc}`,                                       '#60a5fa'],
-                    ['ClinVar', `https://www.ncbi.nlm.nih.gov/clinvar/?term=${enc}+CFTR`,                         '#34d399'],
-                    ['PubMed',  `https://pubmed.ncbi.nlm.nih.gov/?term=${enc}+CFTR+cystic+fibrosis`,              '#fbbf24'],
-                ].map(([name, url, color]) => `
-                    <a href="${url}" target="_blank" rel="noopener noreferrer"
-                       style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;text-decoration:none;transition:background .1s;"
-                       onmouseover="this.style.background='rgba(255,255,255,0.06)'"
-                       onmouseout="this.style.background='transparent'">
-                        <span style="font-size:12px;font-weight:600;color:${color};">${name}</span>
-                        <span style="font-size:11px;color:var(--text-tertiary);flex:1;">search "${escapeHTML(query.length>16?query.slice(0,14)+'…':query)}"</span>
-                        <i class="fas fa-external-link-alt" style="font-size:9px;color:var(--text-tertiary);"></i>
-                    </a>
-                `).join('')}
+            ${similar.length ? `
+            <div style="padding:7px 12px;border-bottom:1px solid var(--border);">
+                <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:5px;letter-spacing:.06em;text-transform:uppercase;">Similar variants in database</div>
+                ${similar.map(({v, d}) => `
+                    <div onclick="selectVariant('${escapeAttr(v.legacy_name)}', true);document.getElementById('searchDropdown').classList.add('hidden');"
+                         style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:5px;cursor:pointer;transition:background .1s;"
+                         onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+                        <span style="font-size:11px;font-family:var(--font-mono);color:var(--text-primary);font-weight:600;">${escapeHTML(v.legacy_name)}</span>
+                        <span style="font-size:10px;color:var(--text-tertiary);">Class ${escapeHTML(v.cftr_class||'?')}</span>
+                        <span style="font-size:10px;color:${v.eti_prediction==='responsive'?'#34d399':v.eti_prediction==='non_responsive'?'#f87171':'var(--text-tertiary)'};">${v.eti_prediction==='responsive'?'ETI ✓':v.eti_prediction==='non_responsive'?'ETI ✗':'—'}</span>
+                        <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.05);color:var(--text-tertiary);">${d} edit${d!==1?'s':''} away</span>
+                    </div>`).join('')}
+            </div>` : ''}
+            <div style="padding:7px 12px 8px;">
+                <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:5px;letter-spacing:.06em;text-transform:uppercase;">Also search externally</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    ${[['CFTR2','https://cftr2.org/mutation_details/'+enc,'#60a5fa'],
+                       ['ClinVar','https://www.ncbi.nlm.nih.gov/clinvar/?term='+enc+'+CFTR','#34d399'],
+                       ['PubMed','https://pubmed.ncbi.nlm.nih.gov/?term='+enc+'+CFTR+cystic+fibrosis','#fbbf24'],
+                       ['LOVD','https://databases.lovd.nl/shared/variants/CFTR?search_variant_published_as='+enc,'#fb923c']
+                    ].map(([name,url,color])=>`
+                        <a href="${url}" target="_blank" rel="noopener noreferrer"
+                           style="font-size:11px;font-weight:600;color:${color};padding:3px 9px;border-radius:4px;
+                                  background:${color}12;border:1px solid ${color}30;text-decoration:none;
+                                  transition:background .1s;"
+                           onmouseover="this.style.background='${color}22'" onmouseout="this.style.background='${color}12'">
+                            ${name} <i class="fas fa-external-link-alt" style="font-size:8px;"></i>
+                        </a>`).join('')}
+                </div>
+            </div>
+            <div style="padding:6px 12px 8px;border-top:1px solid var(--border);">
+                <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px;">Add a clinical note for curators</div>
+                <div style="display:flex;gap:6px;">
+                    <input id="missNoteInput" type="text" placeholder="e.g. seen in 3 patients this week, likely R117H variant…"
+                           style="flex:1;height:28px;background:rgba(255,255,255,0.04);border:1px solid var(--border);
+                                  border-radius:5px;color:var(--text-primary);font-size:11px;padding:0 8px;outline:none;"
+                           onfocus="this.style.borderColor='rgba(41,121,255,0.5)'" onblur="this.style.borderColor='var(--border)'"
+                           onkeydown="if(event.key==='Enter')saveMissNote('${escapeAttr(norm)}')">
+                    <button onclick="saveMissNote('${escapeAttr(norm)}')"
+                            style="padding:0 10px;height:28px;border-radius:5px;border:1px solid rgba(41,121,255,0.3);
+                                   background:rgba(41,121,255,0.08);color:#60a5fa;font-size:11px;cursor:pointer;">
+                        Save note
+                    </button>
+                </div>
             </div>`;
         dd.classList.remove('hidden');
         return;
     }
-    const fieldLabel = { legacy_name:'Legacy', protein_name:'Protein', cdna_name:'cDNA', alt_names:'Alt' };
-    const raw = query.toLowerCase().trim().replace(/^p\./,'').replace(/^c\./,'');
-    const top = results.slice(0, 8);
-    dd.innerHTML = top.map(v => {
-        // Determine matched field for this result
-        let mf = '';
-        if (v.legacy_name  && v.legacy_name.toLowerCase().includes(raw))  mf = 'legacy_name';
-        else if (v.protein_name && v.protein_name.toLowerCase().includes(raw)) mf = 'protein_name';
-        else if (v.cdna_name    && v.cdna_name.toLowerCase().includes(raw))    mf = 'cdna_name';
-        else mf = 'alt_names';
-        const etiCls = v.eti_prediction==='responsive'?'r':v.eti_prediction==='non_responsive'?'n':'u';
-        const etiLabel = v.eti_prediction==='responsive'?'ETI ✓':v.eti_prediction==='non_responsive'?'ETI ✗':'—';
+
+    // Area 2: Results with match highlighting and tier badges
+    const fieldLabel  = { legacy_name:'Legacy name', protein_name:'Protein (HGVS)', cdna_name:'cDNA (HGVS)', alt_names:'Alt name' };
+    const fieldColors = { legacy_name:'#60a5fa', protein_name:'#34d399', cdna_name:'#c084fc', alt_names:'#fbbf24' };
+    const raw   = query.toLowerCase().trim().replace(/^[pcrmn]\./, '').replace(/[-\s]/g,'');
+    const top   = results.slice(0, 8);
+    const tier  = STATE.searchIntelligence._lastSearchTier ?? -1;
+
+    // Area 4: Session compound het prompt — if 2+ variants searched this session, suggest compare
+    const sessionHits = STATE.searchIntelligence.recentSearches.filter(r => r.isHit).slice(0, 6);
+
+    const compHetPrompt = sessionHits.length >= 2 && results.length > 0 ? (() => {
+        const prev = sessionHits.find(r => r.query !== norm && r.matchedVariantId);
+        if (!prev) return '';
+        const prevV = STATE.variantsById.get(prev.matchedVariantId);
+        if (!prevV) return '';
+        return `
+        <div style="padding:6px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;
+             background:rgba(41,121,255,0.04);">
+            <i class="fas fa-dna" style="font-size:10px;color:#60a5fa;flex-shrink:0;"></i>
+            <span style="font-size:11px;color:var(--text-secondary);">
+                You also searched <strong style="color:#93c5fd;font-family:var(--font-mono);">${escapeHTML(prevV.legacy_name)}</strong> this session —
+            </span>
+            <button onclick="helixPinVariant(STATE.variantsById.get(${prevV.id}));document.getElementById('searchDropdown').classList.add('hidden');"
+                    style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid rgba(41,121,255,0.3);
+                           background:rgba(41,121,255,0.08);color:#60a5fa;cursor:pointer;white-space:nowrap;">
+                Compare as compound het
+            </button>
+        </div>`;
+    })() : '';
+
+    const tierBadge = tier >= 0 && tier <= 4 ? `
+        <div style="padding:4px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+            ${transformPill ? '' : ''}
+            <span style="font-size:10px;color:var(--text-tertiary);">${top.length} result${top.length!==1?'s':''}</span>
+            <span style="margin-left:auto;font-size:10px;padding:1px 7px;border-radius:10px;
+                 background:${TIER_COLORS[tier]}18;color:${TIER_COLORS[tier]};border:1px solid ${TIER_COLORS[tier]}30;">
+                ${TIER_LABELS[tier]} match
+            </span>
+        </div>` : '';
+
+    dd.innerHTML = transformPill + compHetPrompt + tierBadge + top.map(v => {
+        // Determine best matched field
+        const chk = f => f && (f.toLowerCase().includes(raw) || normaliseQuery(f).includes(norm));
+        let mf = 'legacy_name';
+        if      (chk(v.legacy_name))  mf = 'legacy_name';
+        else if (chk(v.protein_name)) mf = 'protein_name';
+        else if (chk(v.cdna_name))    mf = 'cdna_name';
+        else                          mf = 'alt_names';
+
+        const matchedText = v[mf] || v.legacy_name;
+        const highlighted = highlightMatch(matchedText, raw);
+        const isLegacy    = mf === 'legacy_name';
+        const etiColor = v.eti_prediction==='responsive'?'#34d399':v.eti_prediction==='non_responsive'?'#f87171':'#5a7aaa';
+        const etiLabel = v.eti_prediction==='responsive'?'ETI ✓':v.eti_prediction==='non_responsive'?'ETI ✗':'ETI ?';
         const hits = v.search_hit_count || 0;
         const val  = v.validation_count || 0;
+        const cls  = v.cftr_class;
+
         return `<div class="sd-item" onclick="selectVariant('${escapeAttr(v.legacy_name)}', true);document.getElementById('searchDropdown').classList.add('hidden');">
-            <div class="sd-val ${val>0?'validated':'unvalidated'}" title="${val>0?val+' validations':'Not validated'}"></div>
-            <div class="sd-name">${escapeHTML(v.legacy_name)}</div>
-            <span class="sd-field">${fieldLabel[mf]||mf}</span>
-            <span class="sd-eti ${etiCls}">${etiLabel}</span>
-            ${hits>0?`<span class="sd-hits">${hits}×</span>`:''}
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+                <div style="width:6px;height:6px;border-radius:50%;flex-shrink:0;
+                     background:${val>0?'#34d399':'rgba(255,255,255,0.15)'}" title="${val>0?val+' validations':'Not validated'}"></div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:13px;font-weight:600;color:var(--text-primary);font-family:var(--font-mono);
+                         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                        ${isLegacy ? highlighted : escapeHTML(v.legacy_name)}
+                    </div>
+                    ${!isLegacy ? `<div style="font-size:10px;color:${fieldColors[mf]||'var(--text-tertiary)'};margin-top:1px;">
+                        via ${fieldLabel[mf]}: ${highlighted}
+                    </div>` : ''}
+                </div>
+                <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+                    ${cls ? `<span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;
+                         background:rgba(255,255,255,0.05);color:var(--text-secondary);">Class ${escapeHTML(cls)}</span>` : ''}
+                    <span style="font-size:10px;font-weight:600;color:${etiColor};">${etiLabel}</span>
+                    ${hits>2?`<span style="font-size:9px;color:var(--text-tertiary);">${hits}×</span>`:''}
+                </div>
+            </div>
         </div>`;
     }).join('');
     dd.classList.remove('hidden');
+}
+
+// Area 5: Save miss note — attaches a clinical annotation to the miss queue entry
+async function saveMissNote(normQuery) {
+    const input = document.getElementById('missNoteInput');
+    if (!input) return;
+    const note = input.value.trim();
+    if (!note) return;
+    try {
+        await fetch(`${CONFIG.SUPABASE.URL}/rest/v1/search_miss_queue?query=eq.${encodeURIComponent(normQuery)}`, {
+            method: 'PATCH',
+            headers: { 'apikey': CONFIG.SUPABASE.KEY, 'Authorization': `Bearer ${CONFIG.SUPABASE.KEY}`,
+                       'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ notes: note })
+        });
+        input.value = '';
+        input.placeholder = 'Note saved — will be visible to curators in Helios';
+        input.style.borderColor = 'rgba(52,211,153,0.5)';
+        setTimeout(() => { input.placeholder = 'e.g. seen in 3 patients this week…'; input.style.borderColor=''; }, 3000);
+    } catch(e) { console.warn('Miss note save failed:', e.message); }
 }
 
 // ========== ACTIVITY RIBBON ==========
@@ -10923,6 +11172,17 @@ function initSearch() {
                 }
             }
         }
+    });
+
+    // Area 4: show search history when input focused and empty
+    input.addEventListener('focus', () => {
+        if (!input.value.trim()) renderSearchHistoryDropdown();
+    });
+    input.addEventListener('blur', () => {
+        setTimeout(() => {
+            const dd = document.getElementById('searchDropdown');
+            if (dd && !dd.matches(':hover')) dd.classList.add('hidden');
+        }, 200);
     });
 
     document.addEventListener('keydown', e => {
@@ -15326,6 +15586,11 @@ Object.assign(window, {
     heliosRunHealthCheck, heliosToggleItem, heliosClearConsole,
     heliosToggleSource, heliosMonitorCurrentVariant,
     heliosRemoveMonitor, heliosLoadInbox, heliosLoadAudit, heliosLoadScanHistory,
+    // Areas 2-5 search additions
+    saveMissNote, highlightMatch,
+    renderVelocityHeatmap, renderCoSearchClusters,
+    renderSearchHistoryDropdown, clearSearchHistory,
+    saveToSearchHistory, getSearchHistory,
     // Phase 3-5 additions
     showDisputeModal, closeDisputeModal, submitDispute,
     exportCohort, exportIRB, exportFilteredCohort, exportIRBPackage,
@@ -15718,7 +15983,289 @@ setTimeout(() => heliosScheduledScan(), 8000);
 // ================================================================
 
 // ================================================================
-// PHASE 3 — COMPOUND HETEROZYGOSITY ENGINE
+// AREA 3 — SEARCH VELOCITY HEATMAP
+// Hour-of-day × day-of-week from search_logs DB.
+// Shows when clinical demand peaks — valuable for staffing and
+// understanding when curators should be on alert.
+// ================================================================
+
+async function renderVelocityHeatmap() {
+    const container = document.getElementById('velocityHeatmapContainer');
+    const note      = document.getElementById('velocityHeatmapNote');
+    if (!container) return;
+    container.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);padding:20px 0;">Loading velocity data…</div>';
+
+    try {
+        const res = await fetch(
+            `${CONFIG.SUPABASE.URL}/rest/v1/search_logs?select=searched_at,is_hit&order=searched_at.desc&limit=5000`,
+            { headers: { 'apikey': CONFIG.SUPABASE.KEY, 'Authorization': `Bearer ${CONFIG.SUPABASE.KEY}` } }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const rows = await res.json();
+
+        if (!rows.length) {
+            container.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);padding:20px 0;">No search data yet — heatmap will populate as clinicians search.</div>';
+            return;
+        }
+
+        // Build hour×day matrix (7 days × 24 hours)
+        const matrix = Array.from({length:7}, () => new Array(24).fill(0));
+        const hitMatrix = Array.from({length:7}, () => new Array(24).fill(0));
+        rows.forEach(r => {
+            const d = new Date(r.searched_at);
+            const day  = d.getDay();  // 0=Sun
+            const hour = d.getHours();
+            matrix[day][hour]++;
+            if (r.is_hit) hitMatrix[day][hour]++;
+        });
+
+        const maxVal = Math.max(...matrix.flat());
+        const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const hours  = Array.from({length:24}, (_,i) => i);
+
+        // Render SVG heatmap
+        const cellW = 22, cellH = 18, labelW = 36, labelH = 20;
+        const svgW = labelW + 24 * cellW + 10;
+        const svgH = labelH + 7 * cellH + 10;
+
+        let cells = '';
+        // Hour labels
+        for (let h = 0; h < 24; h += 3) {
+            cells += `<text x="${labelW + h * cellW + cellW/2}" y="${labelH - 4}"
+                text-anchor="middle" style="font-size:9px;fill:var(--text-tertiary);font-family:var(--font-mono);">${h.toString().padStart(2,'0')}h</text>`;
+        }
+        // Day labels + cells
+        days.forEach((day, di) => {
+            const y = labelH + di * cellH;
+            cells += `<text x="${labelW - 4}" y="${y + cellH/2 + 4}" text-anchor="end"
+                style="font-size:10px;fill:var(--text-secondary);font-family:var(--font-mono);">${day}</text>`;
+            for (let h = 0; h < 24; h++) {
+                const val      = matrix[di][h];
+                const hitRate  = val > 0 ? hitMatrix[di][h] / val : 0;
+                const intensity = maxVal > 0 ? val / maxVal : 0;
+                // Color: cool blue for low, warm amber/green by hit rate at high intensity
+                const r = Math.round(intensity >= 0.1
+                    ? (hitRate >= 0.7 ? 29 + intensity*23 : 41 + intensity*80)
+                    : 20);
+                const g = Math.round(intensity >= 0.1
+                    ? (hitRate >= 0.7 ? 158 + intensity*53 : 121 + intensity*30)
+                    : 20);
+                const b = Math.round(intensity >= 0.1
+                    ? (hitRate >= 0.7 ? 117 - intensity*40 : 255 - intensity*120)
+                    : 40);
+                const fill = intensity > 0.02 ? `rgb(${r},${g},${b})` : 'rgba(255,255,255,0.04)';
+                const tooltip = val > 0
+                    ? `${val} search${val!==1?'es':''} · ${Math.round(hitRate*100)}% hit rate`
+                    : 'No searches';
+                cells += `<rect x="${labelW + h*cellW + 1}" y="${y + 1}" width="${cellW-2}" height="${cellH-2}"
+                    rx="2" fill="${fill}" opacity="0.9">
+                    <title>${days[di]} ${h.toString().padStart(2,'0')}:00 — ${tooltip}</title>
+                </rect>`;
+                if (val >= 3) {
+                    cells += `<text x="${labelW + h*cellW + cellW/2}" y="${y + cellH/2 + 3}"
+                        text-anchor="middle" style="font-size:8px;fill:rgba(255,255,255,0.7);pointer-events:none;">${val}</text>`;
+                }
+            }
+        });
+
+        // Legend
+        const legendY = labelH + 7 * cellH + 8;
+        cells += `<text x="${labelW}" y="${legendY + 10}" style="font-size:9px;fill:var(--text-tertiary);">Low volume</text>`;
+        for (let i = 0; i < 5; i++) {
+            const intens = i / 4;
+            const r2 = Math.round(20 + intens*100), g2 = Math.round(20 + intens*150), b2 = Math.round(40 + intens*215);
+            cells += `<rect x="${labelW + 80 + i*14}" y="${legendY}" width="12" height="10" rx="2" fill="rgb(${r2},${g2},${b2})" opacity="0.9"/>`;
+        }
+        cells += `<text x="${labelW + 160}" y="${legendY + 10}" style="font-size:9px;fill:var(--text-tertiary);">High volume</text>`;
+        cells += `<text x="${labelW + 230}" y="${legendY + 10}" style="font-size:9px;fill:var(--text-tertiary);">Green = high hit rate · Blue = more misses</text>`;
+
+        container.innerHTML = `<svg width="100%" viewBox="0 0 ${svgW} ${svgH + 20}" xmlns="http://www.w3.org/2000/svg"
+            style="overflow:visible;">${cells}</svg>`;
+
+        // Peak summary
+        const peakDay  = matrix.map((row,i) => ({i, sum: row.reduce((a,b)=>a+b,0)})).sort((a,b)=>b.sum-a.sum)[0];
+        const peakHour = hours.map(h => ({h, sum: matrix.reduce((s,row)=>s+row[h],0)})).sort((a,b)=>b.sum-a.sum)[0];
+        if (note) note.textContent = `Peak day: ${days[peakDay.i]} (${peakDay.sum} searches) · Peak hour: ${peakHour.h}:00–${peakHour.h+1}:00 (${peakHour.sum} searches) · ${rows.length.toLocaleString()} total events analysed`;
+
+    } catch(e) {
+        container.innerHTML = `<div style="font-size:11px;color:var(--error);padding:20px 0;">Failed to load: ${escapeHTML(e.message)}</div>`;
+    }
+}
+
+// ================================================================
+// AREA 3 — CO-SEARCH CLUSTER VISUALIZATION
+// Reads session_id groups from search_logs to find variant pairs
+// searched together. Surfaces compound het candidates and
+// shows cross-institutional co-search patterns.
+// ================================================================
+
+async function renderCoSearchClusters() {
+    const container = document.getElementById('coSearchContainer');
+    if (!container) return;
+    container.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);padding:20px 0;">Analysing co-search patterns…</div>';
+
+    try {
+        const res = await fetch(
+            `${CONFIG.SUPABASE.URL}/rest/v1/search_logs?select=session_id,query,matched_variant_id,is_hit,hospital_name&is_hit=eq.true&matched_variant_id=not.is.null&order=session_id,searched_at&limit=3000`,
+            { headers: { 'apikey': CONFIG.SUPABASE.KEY, 'Authorization': `Bearer ${CONFIG.SUPABASE.KEY}` } }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const rows = await res.json();
+
+        if (!rows.length) {
+            container.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);padding:20px 0;">No co-search data yet — patterns emerge as clinicians search multiple variants per session.</div>';
+            return;
+        }
+
+        // Group hits by session
+        const bySession = {};
+        rows.forEach(r => {
+            if (!bySession[r.session_id]) bySession[r.session_id] = { variants: new Set(), hospitals: new Set() };
+            bySession[r.session_id].variants.add(r.matched_variant_id);
+            if (r.hospital_name) bySession[r.session_id].hospitals.add(r.hospital_name);
+        });
+
+        // Build pair co-occurrence counts
+        const pairCounts = {};
+        const pairHospitals = {};
+        Object.values(bySession).forEach(({ variants, hospitals }) => {
+            const arr = [...variants];
+            if (arr.length < 2) return;
+            for (let i = 0; i < arr.length; i++) {
+                for (let j = i+1; j < arr.length; j++) {
+                    const key = [arr[i], arr[j]].sort().join('|');
+                    pairCounts[key] = (pairCounts[key] || 0) + 1;
+                    if (!pairHospitals[key]) pairHospitals[key] = new Set();
+                    hospitals.forEach(h => pairHospitals[key].add(h));
+                }
+            }
+        });
+
+        // Sort by frequency
+        const pairs = Object.entries(pairCounts)
+            .sort((a,b) => b[1] - a[1])
+            .slice(0, 15);
+
+        if (!pairs.length) {
+            container.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);padding:20px 0;">No variant pairs found in sessions yet.</div>';
+            return;
+        }
+
+        const maxCount = pairs[0][1];
+        container.innerHTML = `
+        <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;">
+            ${pairs.length} co-search pair${pairs.length!==1?'s':''} detected across ${Object.keys(bySession).length} sessions
+        </div>
+        ${pairs.map(([key, count]) => {
+            const [id1, id2] = key.split('|').map(Number);
+            const v1 = STATE.variantsById.get(id1);
+            const v2 = STATE.variantsById.get(id2);
+            if (!v1 || !v2) return '';
+            const width   = Math.round((count / maxCount) * 100);
+            const verdict = computeCompoundHetVerdict(v1, v2);
+            const hospitals = pairHospitals[key] ? [...pairHospitals[key]] : [];
+            const isCompHetCandidate = verdict?.anyEligible;
+            const barColor = isCompHetCandidate ? '#34d399' : '#378add';
+
+            return `
+            <div style="padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;"
+                 onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'"
+                 onclick="helixPinVariant(STATE.variantsById.get(${id1}));selectVariant('${escapeAttr(v2.legacy_name)}');document.getElementById('searchDropdown')?.classList.add('hidden');">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+                    <span style="font-size:12px;font-weight:700;color:var(--text-primary);font-family:var(--font-mono);">${escapeHTML(v1.legacy_name)}</span>
+                    <span style="font-size:11px;color:var(--text-tertiary);">+</span>
+                    <span style="font-size:12px;font-weight:700;color:var(--text-primary);font-family:var(--font-mono);">${escapeHTML(v2.legacy_name)}</span>
+                    ${isCompHetCandidate ? `<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(52,211,153,0.1);color:#34d399;border:1px solid rgba(52,211,153,0.2);">comp. het candidate</span>` : ''}
+                    ${verdict?.trikaftaEligible ? `<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(52,211,153,0.08);color:#34d399;">Trikafta eligible</span>` : ''}
+                    <span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--text-secondary);">${count}×</span>
+                </div>
+                <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.06);margin-bottom:4px;">
+                    <div style="height:100%;width:${width}%;border-radius:2px;background:${barColor};transition:width .3s;"></div>
+                </div>
+                <div style="font-size:10px;color:var(--text-tertiary);display:flex;gap:10px;">
+                    <span>${count} co-search session${count!==1?'s':''}</span>
+                    ${hospitals.length ? `<span>${hospitals.length} institution${hospitals.length!==1?'s':''}: ${hospitals.slice(0,2).map(h=>escapeHTML(h)).join(', ')}${hospitals.length>2?'…':''}</span>` : ''}
+                    <span style="margin-left:auto;color:#60a5fa;font-size:10px;">Click to compare →</span>
+                </div>
+            </div>`;
+        }).join('')}`;
+
+    } catch(e) {
+        container.innerHTML = `<div style="font-size:11px;color:var(--error);padding:20px 0;">Failed: ${escapeHTML(e.message)}</div>`;
+    }
+}
+
+// ================================================================
+// AREA 4 — SESSION-AWARE SEARCH CONTEXT
+// Cross-session history stored in localStorage.
+// Compound het prompt when 2+ variant hits in same session.
+// ================================================================
+
+const SEARCH_HISTORY_KEY = 'neumuacACFG_search_history_v1';
+const MAX_HISTORY = 50;
+
+function getSearchHistory() {
+    try { return JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || '[]'); } catch { return []; }
+}
+
+function saveToSearchHistory(query, variantId, variantName) {
+    const history = getSearchHistory();
+    const entry   = { query, variantId, variantName, ts: Date.now() };
+    // Dedupe by variantId
+    const deduped = history.filter(h => h.variantId !== variantId);
+    deduped.unshift(entry);
+    if (deduped.length > MAX_HISTORY) deduped.length = MAX_HISTORY;
+    try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(deduped)); } catch {}
+}
+
+function renderSearchHistoryDropdown() {
+    const dd = document.getElementById('searchDropdown');
+    if (!dd) return;
+    const history = getSearchHistory();
+    if (!history.length) return;
+
+    const recentEntries = history.slice(0, 8);
+    dd.innerHTML = `
+        <div style="padding:6px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:10px;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">Recent searches</span>
+            <button onclick="clearSearchHistory()" style="font-size:10px;color:var(--text-tertiary);background:none;border:none;cursor:pointer;">Clear</button>
+        </div>
+        ${recentEntries.map(h => {
+            const v = STATE.variantsById.get(h.variantId);
+            const name = h.variantName || h.query;
+            const timeAgo = formatTimeAgo(h.ts);
+            return `<div class="sd-item" onclick="selectVariant('${escapeAttr(name)}', true);document.getElementById('searchDropdown').classList.add('hidden');">
+                <div style="display:flex;align-items:center;gap:8px;flex:1;">
+                    <i class="fas fa-history" style="font-size:10px;color:var(--text-tertiary);flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:600;color:var(--text-primary);font-family:var(--font-mono);">${escapeHTML(name)}</span>
+                    ${v ? `<span style="font-size:10px;color:var(--text-tertiary);">Class ${escapeHTML(v.cftr_class||'?')}</span>` : ''}
+                    <span style="margin-left:auto;font-size:10px;color:var(--text-tertiary);">${timeAgo}</span>
+                </div>
+            </div>`;
+        }).join('')}`;
+    dd.classList.remove('hidden');
+}
+
+function formatTimeAgo(ts) {
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    const hrs  = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    if (mins < 1)   return 'just now';
+    if (mins < 60)  return `${mins}m ago`;
+    if (hrs < 24)   return `${hrs}h ago`;
+    return `${days}d ago`;
+}
+
+function clearSearchHistory() {
+    try { localStorage.removeItem(SEARCH_HISTORY_KEY); } catch {}
+    const dd = document.getElementById('searchDropdown');
+    if (dd) dd.classList.add('hidden');
+    showNotification('Search history cleared', 'info', 2000);
+}
+
+// ================================================================
+// AREA 3 — PHASE 3 COMPOUND HETEROZYGOSITY ENGINE
 // Full modulator eligibility map. Allele-pair logic. Clinical verdict.
 // ================================================================
 
