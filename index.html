@@ -910,6 +910,60 @@
         }
 
 
+        /* Search mode — sidebar adapts when query is active */
+        .app-shell.search-active .sidebar-filters {
+            opacity: 0.35;
+            pointer-events: none;
+            transition: opacity 200ms;
+        }
+        .app-shell.search-active .class-filter-bar {
+            opacity: 0.35;
+            pointer-events: none;
+            transition: opacity 200ms;
+        }
+        .app-shell.search-active .search-hint {
+            display: none;
+        }
+        /* Search result count — shown prominently in search mode */
+        .search-result-bar {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 2px 2px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+        }
+        .app-shell.search-active .search-result-bar {
+            display: flex;
+        }
+        .search-result-count {
+            font-weight: 700;
+            color: #fbbf24;
+        }
+        .search-result-clear {
+            margin-left: auto;
+            font-size: 10px;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: var(--font-body);
+            transition: color 150ms;
+        }
+        .search-result-clear:hover { color: var(--text-primary); }
+        /* Exact match — pulse the found row */
+        @keyframes exactMatchPulse {
+            0%   { box-shadow: 0 0 0 0 rgba(251,191,36,0.4); }
+            70%  { box-shadow: 0 0 0 6px rgba(251,191,36,0); }
+            100% { box-shadow: 0 0 0 0 rgba(251,191,36,0); }
+        }
+        .variant-row.exact-match-found {
+            animation: exactMatchPulse 0.6s ease-out;
+        }
+
         /* Filter chips */
         .sidebar-filters {
             padding: 10px 12px;
@@ -4001,16 +4055,22 @@
                     type="text"
                     id="searchInput"
                     class="search-input"
-                    placeholder="Variante, cDNA, proteína, clase…" aria-label="Variante, cDNA, proteína, clase…"
+                    placeholder="Variant, cDNA, protein, class…" aria-label="Search variant, cDNA, protein or class"
                     autocomplete="off"
                 >
                 <button class="search-clear hidden" id="searchClear" onclick="clearSearch()">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="search-hint">
-                <kbd>/</kbd><span>búsqueda rápida</span>
-                <span style="margin-left:auto;opacity:0.6" id="searchResultCount"></span>
+            <div class="search-hint" id="searchHint">
+                <kbd>/</kbd><span>quick search</span>
+            </div>
+            <div class="search-result-bar" id="searchResultBar">
+                <span id="searchResultCount" class="search-result-count"></span>
+                <span id="searchResultLabel" style="color:var(--text-tertiary);font-size:10px;"></span>
+                <button class="search-result-clear" onclick="clearSearch()">
+                    <i class="fas fa-times" style="font-size:9px;margin-right:3px;"></i>clear
+                </button>
             </div>
             <!-- Intelligent search dropdown -->
             <div class="search-dropdown hidden" id="searchDropdown"></div>
@@ -7706,6 +7766,8 @@ function clearSearch() {
     if (input) input.value = '';
     document.getElementById('searchClear')?.classList.add('hidden');
     document.getElementById('searchDropdown')?.classList.add('hidden');
+    // Remove search-active mode — restore full browse state
+    document.getElementById('appShell')?.classList.remove('search-active');
     helixHideMissAction();
     helixResetDetailEmpty();
     applyFilterChain();
@@ -7742,28 +7804,56 @@ function renderVariantList() {
     const start = (STATE.view.currentPage - 1) * CONFIG.UI.ITEMS_PER_PAGE;
     const page = STATE.view.filteredVariants.slice(start, start + CONFIG.UI.ITEMS_PER_PAGE);
 
-    setText('listCount', STATE.view.filteredVariants.length.toLocaleString());
+    const q = STATE.view.searchQuery;
+    const isSearching = q && q.length >= CONFIG.UI.MIN_SEARCH_CHARS;
+    const total = STATE.view.filteredVariants.length;
+
+    // Search-mode class on app-shell drives CSS state for filters + result bar
+    const shell = document.getElementById('appShell');
+    if (shell) shell.classList.toggle('search-active', isSearching);
+
+    setText('listCount', total.toLocaleString());
+
+    // Update search result bar
+    const countEl = document.getElementById('searchResultCount');
+    const labelEl = document.getElementById('searchResultLabel');
+    if (countEl) countEl.textContent = isSearching ? total.toLocaleString() : '';
+    if (labelEl) {
+        if (isSearching) {
+            const norm = normaliseQuery(q);
+            const transformed = norm !== q.toLowerCase().replace(/[-\s]/g,'').replace(/^[pcrmn]\./, '');
+            labelEl.textContent = total === 1
+                ? 'exact match'
+                : total === 0
+                ? 'no results'
+                : `result${total !== 1 ? 's' : ''} for "${transformed ? norm : q}"`;
+        } else {
+            labelEl.textContent = '';
+        }
+    }
+
+    // Auto-select on exact single match — if search finds exactly 1 result
+    // and it's a new selection, select it immediately
+    if (isSearching && total === 1 && STATE.view.filteredVariants[0]) {
+        const onlyResult = STATE.view.filteredVariants[0];
+        if (STATE.view.selectedVariant?.id !== onlyResult.id) {
+            // Defer to avoid blocking render
+            setTimeout(() => {
+                selectVariant(onlyResult.legacy_name, true);
+                // Close dropdown — the detail panel has the answer
+                document.getElementById('searchDropdown')?.classList.add('hidden');
+            }, 80);
+        }
+    }
 
     if (page.length === 0) {
         container.innerHTML = `
             <div class="list-empty">
                 <div class="list-empty-icon"><i class="fas fa-search"></i></div>
-                <p>No variants found</p>
-                <p style="margin-top:6px; font-size:11px">Try a different search or filter</p>
+                <p style="font-family:var(--font-mono);font-size:13px;color:var(--text-secondary);">"${escapeHTML(q || '')}"</p>
+                <p style="margin-top:6px;font-size:11px;color:var(--text-tertiary);">not in NeumuacFQ — robotic search queued</p>
             </div>`;
         return;
-    }
-
-    const q = STATE.view.searchQuery;
-
-    // Update search result count hint
-    const countEl = document.getElementById('searchResultCount');
-    if (countEl) {
-        if (q && q.length >= CONFIG.UI.MIN_SEARCH_CHARS) {
-            countEl.textContent = `${STATE.view.filteredVariants.length} resultado${STATE.view.filteredVariants.length !== 1 ? 's' : ''}`;
-        } else {
-            countEl.textContent = '';
-        }
     }
 
     container.innerHTML = page.map(v => {
@@ -7828,6 +7918,24 @@ function renderVariantList() {
 }
 
 // ========== RENDER — VARIANT DETAIL ==========
+
+// ---- Clinical alert banner — pure function, no template literal escaping issues ----
+function renderClinicalAlertBanner(variant) {
+    const alert = variant.clinical_alert || '';
+    if (!alert || alert.startsWith('Standard')) return '';
+    const isUnknown     = alert.includes('UNKNOWN');
+    const isExceptional = alert.includes('EXCEPTIONAL');
+    const color  = isUnknown ? '#fbbf24' : isExceptional ? '#60a5fa' : '#f87171';
+    const bg     = isUnknown ? 'rgba(251,191,36,0.08)' : isExceptional ? 'rgba(96,165,250,0.08)' : 'rgba(248,113,113,0.08)';
+    const icon   = isUnknown ? 'fa-question-circle' : isExceptional ? 'fa-bolt' : 'fa-exclamation-circle';
+    // Strip emoji prefix from DB-computed alert text for clean display
+    const text   = alert.replace(/^[⚠️🚫❓✅⚡]+\s*/u, '').trim();
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;
+         background:${bg};border-left:3px solid ${color};border-bottom:1px solid var(--border);">
+        <i class="fas ${icon}" style="color:${color};font-size:13px;flex-shrink:0;"></i>
+        <span style="font-size:12px;font-weight:600;color:var(--text-primary);">${escapeHTML(text)}</span>
+    </div>`;
+}
 
 function renderVariantDetail(variant, fromSearch) {
     document.getElementById('detailEmpty').classList.add('hidden');
@@ -7920,16 +8028,8 @@ function renderVariantDetail(variant, fromSearch) {
             </div>
         </div>
 
-        <!-- CLINICAL ALERT BANNER — computed by DB, now surfaced -->
-        \${variant.clinical_alert && !variant.clinical_alert.startsWith('Standard') ? \`
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;
-             background:\${variant.clinical_alert.includes('UNKNOWN') ? 'rgba(251,191,36,0.08)' : variant.clinical_alert.includes('EXCEPTIONAL') ? 'rgba(96,165,250,0.08)' : 'rgba(248,113,113,0.08)'};
-             border-left:3px solid \${variant.clinical_alert.includes('UNKNOWN') ? '#fbbf24' : variant.clinical_alert.includes('EXCEPTIONAL') ? '#60a5fa' : '#f87171'};
-             border-bottom:1px solid var(--border);">
-            <i class="fas \${variant.clinical_alert.includes('UNKNOWN') ? 'fa-question-circle' : variant.clinical_alert.includes('EXCEPTIONAL') ? 'fa-bolt' : 'fa-exclamation-circle'}"
-               style="color:\${variant.clinical_alert.includes('UNKNOWN') ? '#fbbf24' : variant.clinical_alert.includes('EXCEPTIONAL') ? '#60a5fa' : '#f87171'};font-size:13px;flex-shrink:0;"></i>
-            <span style="font-size:12px;font-weight:600;color:var(--text-primary);">\${escapeHTML(variant.clinical_alert)}</span>
-        </div>\` : ''}
+        <!-- CLINICAL ALERT BANNER — computed by DB, rendered via helper -->
+        ${renderClinicalAlertBanner(variant)}
 
         <!-- AMBIENT INTELLIGENCE STRIP -->
         <div class="intel-strip" id="intelStrip">
@@ -9883,6 +9983,12 @@ function classifyHit(variant) {
 
 // Master flash controller — call once per search hit
 function triggerHitFlash(variant) {
+    // Also add exact-match pulse to the list row
+    const rows = document.querySelectorAll('.variant-row.selected');
+    rows.forEach(r => {
+        r.classList.add('exact-match-found');
+        setTimeout(() => r.classList.remove('exact-match-found'), 700);
+    });
     if (!variant) return;
     const tier = classifyHit(variant);
 
