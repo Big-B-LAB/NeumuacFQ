@@ -87,7 +87,7 @@
             --font-mono: 'IBM Plex Mono', 'SF Mono', monospace;
 
             /* Core palette — deep navy system */
-            --white: #0d1526;
+            --white: #0d1526;     /* named --bg-elevated in new code — see alias above */
             --surface: #080f1d;
             --surface-alt: #0a1220;
             --border: rgba(99,140,210,0.13);
@@ -99,6 +99,43 @@
 
             /* Brand — electric blue */
             --brand: #2979ff;
+
+            /* ---- Design tokens: opacity tiers (document-aligned) ----
+               Three tiers only per semantic color — no more scattered opacity values */
+            /* Class I / error */
+            --class-i-fill:   rgba(248,113,113,0.08);
+            --class-i-border: rgba(248,113,113,0.22);
+            /* Class II / warning-orange */
+            --class-ii-fill:   rgba(251,146,60,0.08);
+            --class-ii-border: rgba(251,146,60,0.22);
+            /* Class III / success */
+            --class-iii-fill:   rgba(52,211,153,0.08);
+            --class-iii-border: rgba(52,211,153,0.22);
+            /* Positive / validated — single green token, replaces #34d399 */
+            --validated: #34d399;
+            --validated-fill: rgba(52,211,153,0.08);
+            /* White surface tiers — 3 levels only */
+            --surface-subtle: rgba(255,255,255,0.04);
+            --surface-hover:  rgba(255,255,255,0.08);
+            --surface-active: rgba(255,255,255,0.14);
+            /* Text hierarchy — replaces hardcoded #5a7aaa / #4a6a99 / #3a4a6a */
+            --text-quaternary: rgba(99,140,210,0.45);
+            /* --white renamed alias — for readability in code */
+            --bg-elevated: #0d1526;
+            /* Type scale tokens */
+            --text-caption:  11px;
+            --text-body:     13px;
+            --text-subhead:  15px;
+            --text-title:    18px;
+            --text-display:  24px;
+            /* Letter-spacing tokens — 3 values only */
+            --ls-tight:  0.01em;
+            --ls-normal: 0.06em;
+            --ls-wide:   0.12em;
+            /* Border radius tokens — 3 values only */
+            --radius-sm: 6px;
+            --radius-md: 9px;
+            --radius-lg: 12px;
             --brand-light: rgba(41,121,255,0.12);
             --brand-mid: rgba(41,121,255,0.22);
             --brand-dark: #1a5fd9;
@@ -214,7 +251,7 @@
             overflow: hidden;
             font-family: var(--font-body);
             font-size: 14px;
-            line-height: 1.5;
+            line-height: 1.55;
             color: var(--text-primary);
             background: var(--surface);
             -webkit-font-smoothing: antialiased;
@@ -1174,8 +1211,8 @@
         }
         @keyframes rowAccentFlash {
             0%   { background: var(--brand); box-shadow: 2px 0 12px rgba(41,121,255,0.4); }
-            18%  { background: #4ade80;      box-shadow: 2px 0 14px rgba(74,222,128,0.6); }
-            55%  { background: #4ade80;      box-shadow: 2px 0 8px rgba(74,222,128,0.3); }
+            18%  { background: #34d399;      box-shadow: 2px 0 14px rgba(74,222,128,0.6); }
+            55%  { background: #34d399;      box-shadow: 2px 0 8px rgba(74,222,128,0.3); }
             100% { background: var(--brand); box-shadow: 2px 0 12px rgba(41,121,255,0.4); }
         }
         .variant-row.selected.row-hit-flash {
@@ -1332,7 +1369,7 @@
         /* Search highlight — glowing green, exact nomenclature match */
         .sh {
             background: rgba(34,197,94,0.18);
-            color: #4ade80;
+            color: #34d399;
             font-weight: 700;
             border-radius: 3px;
             padding: 0 2px;
@@ -1349,7 +1386,7 @@
         .si-kpi { background:var(--surface); padding:12px 14px; }
         .si-kpi-label { font-size: 11px; font-weight:600; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:.1em; margin-bottom:5px; }
         .si-kpi-val { font-size:19px; font-weight:700; font-family:var(--font-mono); line-height:1; color:var(--text-primary); }
-        .si-kpi-val.g { color:#4ade80; } .si-kpi-val.r { color:#f87171; } .si-kpi-val.a { color:#fbbf24; } .si-kpi-val.b { color:#60a5fa; }
+        .si-kpi-val.g { color:#34d399; } .si-kpi-val.r { color:#f87171; } .si-kpi-val.a { color:#fbbf24; } .si-kpi-val.b { color:#60a5fa; }
         .si-kpi-sub { font-size: 11px; color:var(--text-tertiary); margin-top:3px; font-family:var(--font-mono); }
         .si-body { padding:16px; display:flex; flex-direction:column; gap:14px; }
         .si-card { background:var(--surface-alt); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
@@ -1363,7 +1400,7 @@
         .si-bl { font-size:11px; font-family:var(--font-mono); color:var(--text-primary); min-width:118px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .si-bt { flex:1; height:6px; background:rgba(255,255,255,0.04); border-radius:3px; overflow:hidden; }
         .si-bf { height:100%; border-radius:3px; transition:width .7s cubic-bezier(.4,0,.2,1); }
-        .si-bf.g { background:#4ade80; } .si-bf.r { background:#f87171; }
+        .si-bf.g { background:#34d399; } .si-bf.r { background:#f87171; }
         .si-bn { font-size: 11px; font-family:var(--font-mono); color:var(--text-secondary); min-width:30px; text-align:right; }
         .si-miss-row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--border); }
         .si-miss-row:last-child { border-bottom:none; }
@@ -1373,17 +1410,17 @@
         .si-miss-s { font-size: 11px; font-weight:600; padding:2px 6px; border-radius:4px; letter-spacing:.03em; white-space:nowrap; }
         .si-miss-s.pending { background:rgba(251,191,36,0.1); color:#fbbf24; border:1px solid rgba(251,191,36,0.2); }
         .si-miss-s.review { background:rgba(96,165,250,0.1); color:#60a5fa; border:1px solid rgba(96,165,250,0.2); }
-        .si-miss-s.resolved { background:rgba(74,222,128,0.1); color:#4ade80; border:1px solid rgba(74,222,128,0.2); }
+        .si-miss-s.resolved { background:rgba(74,222,128,0.1); color:#34d399; border:1px solid rgba(74,222,128,0.2); }
         .si-recent-row { display:flex; align-items:center; gap:10px; padding:5px 0; border-bottom:1px solid var(--border); }
         .si-recent-row:last-child { border-bottom:none; }
         .si-hb { font-size: 11px; font-weight:700; padding:2px 6px; border-radius:4px; letter-spacing:.04em; flex-shrink:0; }
-        .si-hb.hit { background:rgba(74,222,128,0.1); color:#4ade80; border:1px solid rgba(74,222,128,0.18); }
+        .si-hb.hit { background:rgba(74,222,128,0.1); color:#34d399; border:1px solid rgba(74,222,128,0.18); }
         .si-hb.miss { background:rgba(248,113,113,0.08); color:#f87171; border:1px solid rgba(248,113,113,0.18); }
         .si-rq { font-size:11px; font-family:var(--font-mono); color:var(--text-primary); flex:1; }
         .si-rf { font-size: 11px; color:var(--text-secondary); background:var(--white); border-radius:3px; padding:1px 5px; border:1px solid var(--border); }
         .si-rt { font-size: 11px; color:var(--text-tertiary); font-family:var(--font-mono); }
         .si-coverage-track { height:8px; background:rgba(255,255,255,0.04); border-radius:4px; overflow:hidden; margin-bottom:5px; }
-        .si-coverage-fill { height:100%; border-radius:4px; background:#4ade80; transition:width 1s cubic-bezier(.4,0,.2,1); }
+        .si-coverage-fill { height:100%; border-radius:4px; background:#34d399; transition:width 1s cubic-bezier(.4,0,.2,1); }
         .si-field-bar { display:flex; height:24px; border-radius:4px; overflow:hidden; gap:1px; margin-bottom:7px; }
         .si-fb-seg { display:flex; align-items:center; justify-content:center; font-size: 11px; font-weight:600; letter-spacing:.04em; }
         .si-gap-badge { font-size: 11px; font-weight:600; padding:1px 6px; border-radius:4px; background:rgba(248,113,113,0.08); color:#f87171; border:1px solid rgba(248,113,113,0.18); }
@@ -1428,7 +1465,7 @@
             border-color: rgba(255,255,255,0.35);
         }
         .geo-ctrl-btn.active.period { color: #60a5fa; border-color: rgba(96,165,250,0.5); background: rgba(96,165,250,0.1); }
-        .geo-ctrl-btn.active.layer-class { color: #4ade80; border-color: rgba(74,222,128,0.5); background: rgba(74,222,128,0.08); }
+        .geo-ctrl-btn.active.layer-class { color: #34d399; border-color: rgba(74,222,128,0.5); background: rgba(74,222,128,0.08); }
         .geo-ctrl-btn.active.layer-miss  { color: #fbbf24; border-color: rgba(251,191,36,0.5); background: rgba(251,191,36,0.08); }
         .geo-controls-bar {
             display: flex;
@@ -1607,7 +1644,7 @@
             padding: 2px 7px;
             border-radius: 4px;
         }
-        .geo-query-badge.hit  { background: rgba(74,222,128,0.1); color:#4ade80; }
+        .geo-query-badge.hit  { background: rgba(74,222,128,0.1); color:#34d399; }
         .geo-query-badge.miss { background: rgba(248,113,113,0.1); color:#f87171; }
 
         /* ---- Research gap engine ---- */
@@ -1740,11 +1777,11 @@
             z-index: 100;
         }
         .header-flash-line.sweep-green {
-            background: linear-gradient(90deg, #4ade80, #34d399, #4ade80);
+            background: linear-gradient(90deg, #34d399, #34d399, #34d399);
             animation: headerSweep 450ms cubic-bezier(0.4,0,0.2,1) forwards;
         }
         .header-flash-line.sweep-exceptional {
-            background: linear-gradient(90deg, #fbbf24, #4ade80, #34d399);
+            background: linear-gradient(90deg, #fbbf24, #34d399, #34d399);
             animation: headerSweep 500ms cubic-bezier(0.4,0,0.2,1) forwards;
         }
 
@@ -1789,7 +1826,7 @@
             padding: 2px 8px; border-radius: 4px; font-size: 11px;
             font-weight: 600; letter-spacing: .04em; white-space: nowrap;
         }
-        .intel-pill.trending { background: rgba(74,222,128,0.1); color:#4ade80; border:1px solid rgba(74,222,128,0.2); }
+        .intel-pill.trending { background: rgba(74,222,128,0.1); color:#34d399; border:1px solid rgba(74,222,128,0.2); }
         .intel-pill.hot      { background: rgba(251,191,36,0.1); color:#fbbf24; border:1px solid rgba(251,191,36,0.2); }
         .intel-pill.gap      { background: rgba(248,113,113,0.08); color:#f87171; border:1px solid rgba(248,113,113,0.18); }
         .intel-pill.miss     { background: rgba(96,165,250,0.1); color:#60a5fa; border:1px solid rgba(96,165,250,0.2); }
@@ -1813,10 +1850,10 @@
         .sd-name { font-size: 12px; font-weight: 600; font-family: var(--font-mono); color: var(--text-primary); flex:1; }
         .sd-field { font-size: 11px; padding: 1px 5px; border-radius: 3px; background: rgba(41,121,255,0.1); color: #60a5fa; white-space:nowrap; }
         .sd-eti   { font-size: 11px; font-weight:700; white-space:nowrap; }
-        .sd-eti.r { color:#4ade80; } .sd-eti.n { color:#f87171; } .sd-eti.u { color:#5a7aaa; }
+        .sd-eti.r { color:#34d399; } .sd-eti.n { color:#f87171; } .sd-eti.u { color:#5a7aaa; }
         .sd-hits  { font-size: 11px; color: var(--text-tertiary); font-family: var(--font-mono); white-space:nowrap; }
         .sd-val   { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
-        .sd-val.validated { background:#4ade80; } .sd-val.unvalidated { background:#5a7aaa; }
+        .sd-val.validated { background:#34d399; } .sd-val.unvalidated { background:#5a7aaa; }
 
         /* ---- Miss queue badge on sidebar ---- */
         .miss-badge {
@@ -1886,11 +1923,11 @@
             color: var(--text-secondary); white-space:nowrap;
             animation: ribbonSlide .4s ease;
         }
-        .ribbon-event.hit  { color:#4ade80; }
+        .ribbon-event.hit  { color:#34d399; }
         .ribbon-event.miss { color:#f87171; }
         @keyframes ribbonSlide { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:none} }
         .ribbon-dot { width:4px;height:4px;border-radius:50%;flex-shrink:0; }
-        .ribbon-dot.hit{background:#4ade80;} .ribbon-dot.miss{background:#f87171;}
+        .ribbon-dot.hit{background:#34d399;} .ribbon-dot.miss{background:#f87171;}
         .ribbon-miss-count { color:#f87171; margin-left:auto; white-space:nowrap; flex-shrink:0; }
 
         /* ---- Import preview table ---- */
@@ -4016,6 +4053,13 @@
                         </button>
                     </div>
                 </div>
+                <!-- COMPOUND GENOTYPE CALCULATOR -->
+                <button onclick="openCompoundGenotypeCalculator()" class="btn btn-ghost"
+                        title="Compound genotype calculator — enter two alleles, get clinical prediction"
+                        style="border-color:rgba(52,211,153,0.3);color:#34d399;">
+                    <i class="fas fa-calculator" style="font-size:12px;"></i>
+                    <span>Genotype</span>
+                </button>
                 <!-- ☀ HELIOS BOT BUTTON -->
                 <button onclick="openHelios()" class="btn btn-ghost" id="heliosBtn" title="Helios — AI Evidence Bot" style="position:relative;border-color:rgba(251,191,36,0.3);color:#fbbf24;">
                     <i class="fas fa-sun" style="font-size:13px;"></i>
@@ -4509,7 +4553,7 @@
             <div class="dash-card">
                 <div class="dash-card-title">Data Completeness
                     <span style="font-size: 11px;font-weight:400;color:var(--text-tertiary);margin-left:8px;">
-                        <span style="color:#4ade80;">■</span> Complete (all clinical fields)
+                        <span style="color:#34d399;">■</span> Complete (all clinical fields)
                         &nbsp;&nbsp;
                         <span style="color:#2979ff;">■</span> Minimal (name + class only)
                     </span>
@@ -4625,7 +4669,7 @@
                     </div>
                     <div class="si-row2">
                         <div class="si-card">
-                            <div class="si-card-head"><div class="si-card-title"><span style="width:6px;height:6px;border-radius:50%;background:#4ade80;display:inline-block;"></span>Top hit variants</div><div class="si-card-note">by frequency</div></div>
+                            <div class="si-card-head"><div class="si-card-title"><span style="width:6px;height:6px;border-radius:50%;background:#34d399;display:inline-block;"></span>Top hit variants</div><div class="si-card-note">by frequency</div></div>
                             <div class="si-card-body" id="siTopHits"><div style="font-size:11px;color:var(--text-tertiary);padding:8px 0;">No searches yet</div></div>
                         </div>
                         <div class="si-card">
@@ -4635,10 +4679,10 @@
                     </div>
                     <div class="si-row2">
                         <div class="si-card">
-                            <div class="si-card-head"><div class="si-card-title"><span style="width:6px;height:6px;border-radius:50%;background:#4ade80;display:inline-block;"></span>DB coverage</div></div>
+                            <div class="si-card-head"><div class="si-card-title"><span style="width:6px;height:6px;border-radius:50%;background:#34d399;display:inline-block;"></span>DB coverage</div></div>
                             <div class="si-card-body">
                                 <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:9px;">
-                                    <span style="font-size:24px;font-weight:700;font-family:var(--font-mono);color:#4ade80;" id="siCoveragePct">—</span>
+                                    <span style="font-size:24px;font-weight:700;font-family:var(--font-mono);color:#34d399;" id="siCoveragePct">—</span>
                                     <span style="font-size: 11px;color:var(--text-tertiary);">clinical coverage</span>
                                 </div>
                                 <div class="si-coverage-track"><div class="si-coverage-fill" id="siCoverageBar" style="width:0%"></div></div>
@@ -7919,6 +7963,268 @@ function renderVariantList() {
 
 // ========== RENDER — VARIANT DETAIL ==========
 
+// ================================================================
+// ACMG/AMP VARIANT CLASSIFICATION FRAMEWORK
+// PVS1, PS1-4, PM1-6, PP1-5 (pathogenic evidence)
+// BA1, BS1-4, BP1-7 (benign evidence)
+// Maps existing variant data to criteria automatically where possible
+// Curators can confirm/override each criterion
+// ================================================================
+
+const ACMG_CRITERIA = {
+    pathogenic: {
+        PVS1: { label:'PVS1', name:'Null variant in gene where LOF is disease mechanism', weight:8, auto: v => v.cftr_class === 'I' && ['CF-causing'].includes(v.final_determination) },
+        PS1:  { label:'PS1', name:'Same amino acid change as established pathogenic variant', weight:4, auto: null },
+        PS3:  { label:'PS3', name:'Well-established functional studies show damaging effect', weight:4, auto: v => (v.evidence_links||[]).some(e => e.study_type === 'functional') },
+        PS4:  { label:'PS4', name:'Prevalence in affected individuals significantly increased', weight:4, auto: v => v.validation_count >= 3 },
+        PM1:  { label:'PM1', name:'Located in mutational hot spot or critical domain', weight:2, auto: null },
+        PM2:  { label:'PM2', name:'Absent or at extremely low frequency in population', weight:2, auto: v => v.population_frequency && parseFloat(v.population_frequency) < 0.001 },
+        PM4:  { label:'PM4', name:'Protein length change due to in-frame indels', weight:2, auto: v => (v.legacy_name||'').match(/del|ins|dup/i) && v.cftr_class !== 'I' },
+        PM5:  { label:'PM5', name:'Novel missense change at pathogenic amino acid position', weight:2, auto: null },
+        PP1:  { label:'PP1', name:'Co-segregation with disease in multiple family members', weight:1, auto: null },
+        PP3:  { label:'PP3', name:'Multiple lines of computational evidence support damaging effect', weight:1, auto: v => v.cftr_class && ['I','II','III'].includes(v.cftr_class) },
+        PP5:  { label:'PP5', name:'Reputable source recently reported as pathogenic', weight:1, auto: v => v.source_summary && v.source_summary.includes('CFTR2') },
+    },
+    benign: {
+        BA1:  { label:'BA1', name:'Allele frequency >5% in population databases', weight:-8, auto: v => v.population_frequency && parseFloat(v.population_frequency) > 0.05 },
+        BS1:  { label:'BS1', name:'Allele frequency greater than expected for disorder', weight:-4, auto: v => v.population_frequency && parseFloat(v.population_frequency) > 0.01 },
+        BS2:  { label:'BS2', name:'Observed in healthy adult', weight:-4, auto: null },
+        BS3:  { label:'BS3', name:'Well-established functional studies show no damaging effect', weight:-4, auto: null },
+        BP1:  { label:'BP1', name:'Missense in gene where only LOF causes disease', weight:-1, auto: null },
+        BP4:  { label:'BP4', name:'Multiple lines of computational evidence suggest no impact', weight:-1, auto: v => v.eti_prediction === 'non_responsive' && !v.cftr_class },
+        BP7:  { label:'BP7', name:'Synonymous variant with no predicted splice impact', weight:-1, auto: null },
+    }
+};
+
+function acmgClassColor(classification) {
+    const map = {
+        'Pathogenic':           '#dc2626',
+        'Likely pathogenic':    '#ea580c',
+        'Uncertain significance':'#92400e',
+        'Likely benign':        '#2563eb',
+        'Benign':               '#16a34a',
+    };
+    return map[classification] || '#64748b';
+}
+
+function computeACMGScore(variant) {
+    const met = { pathogenic: [], benign: [] };
+    let score = 0;
+
+    for (const [key, crit] of Object.entries(ACMG_CRITERIA.pathogenic)) {
+        if (crit.auto && crit.auto(variant)) {
+            met.pathogenic.push(key);
+            score += crit.weight;
+        }
+    }
+    for (const [key, crit] of Object.entries(ACMG_CRITERIA.benign)) {
+        if (crit.auto && crit.auto(variant)) {
+            met.benign.push(key);
+            score += crit.weight;
+        }
+    }
+
+    // ACMG classification thresholds
+    let classification;
+    if (score >= 10)        classification = 'Pathogenic';
+    else if (score >= 6)    classification = 'Likely pathogenic';
+    else if (score >= 0)    classification = 'Uncertain significance';
+    else if (score >= -6)   classification = 'Likely benign';
+    else                    classification = 'Benign';
+
+    return { score, classification, met };
+}
+
+function renderACMGPanel(variant) {
+    const { score, classification, met } = computeACMGScore(variant);
+    const clsColor = classification === 'Pathogenic' ? '#f87171'
+        : classification === 'Likely pathogenic' ? '#fb923c'
+        : classification === 'Uncertain significance' ? '#fbbf24'
+        : classification === 'Likely benign' ? '#60a5fa'
+        : '#34d399';
+
+    const allPathogenic = Object.entries(ACMG_CRITERIA.pathogenic);
+    const allBenign     = Object.entries(ACMG_CRITERIA.benign);
+    const metP = new Set(met.pathogenic);
+    const metB = new Set(met.benign);
+
+    const criteriaHTML = (entries, metSet, color) => entries.map(([key, crit]) => {
+        const isMet = metSet.has(key);
+        return `<div style="display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);opacity:${isMet?'1':'0.4'};">
+            <span style="font-size:10px;font-weight:700;min-width:36px;color:${isMet?color:'var(--text-tertiary)'};font-family:var(--font-mono);">${crit.label}</span>
+            <span style="font-size:11px;color:var(--text-secondary);line-height:1.4;">${escapeHTML(crit.name)}</span>
+            ${isMet ? `<span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:${color}18;color:${color};flex-shrink:0;">met</span>` : ''}
+        </div>`;
+    }).join('');
+
+    return `
+    <div class="detail-section" style="margin-top:0;border-left:3px solid ${clsColor}60;">
+        <div class="section-header">
+            <div class="section-header-icon" style="background:${clsColor}18;color:${clsColor};">
+                <i class="fas fa-balance-scale"></i>
+            </div>
+            <span class="section-title">ACMG/AMP variant classification</span>
+            <span style="margin-left:auto;font-size:11px;font-weight:700;padding:2px 10px;border-radius:10px;
+                 background:${clsColor}18;color:${clsColor};border:1px solid ${clsColor}30;">
+                ${escapeHTML(classification)}
+            </span>
+        </div>
+        <div class="section-body">
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 0;margin-bottom:8px;border-bottom:1px solid var(--border);">
+                <div>
+                    <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;">Auto-computed score</div>
+                    <div style="font-size:22px;font-weight:700;color:${clsColor};font-family:var(--font-mono);">
+                        ${score > 0 ? '+' : ''}${score}
+                    </div>
+                </div>
+                <div style="flex:1;font-size:11px;color:var(--text-secondary);line-height:1.6;">
+                    ${met.pathogenic.length} pathogenic criterion${met.pathogenic.length!==1?'a':''} met
+                    (${met.pathogenic.join(', ')||'none'})${met.benign.length ? ` · ${met.benign.length} benign (${met.benign.join(', ')})` : ''}.
+                    Automated scoring — curators should review and confirm each criterion.
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
+                <div>
+                    <div style="font-size:10px;font-weight:700;color:#fb923c;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Pathogenic evidence</div>
+                    ${criteriaHTML(allPathogenic, metP, '#fb923c')}
+                </div>
+                <div>
+                    <div style="font-size:10px;font-weight:700;color:#60a5fa;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Benign evidence</div>
+                    ${criteriaHTML(allBenign, metB, '#60a5fa')}
+                </div>
+            </div>
+            <div style="margin-top:8px;font-size:10px;color:var(--text-tertiary);line-height:1.6;">
+                ACMG/AMP 2015 criteria · Richards et al., Genet Med 17:405–423 (2015) ·
+                Automated criteria based on available data — expert review required before clinical reporting.
+            </div>
+        </div>
+    </div>`;
+}
+
+// ================================================================
+// CLINICAL REFERENCE PANEL
+// Addresses document recommendations:
+// - Sweat chloride ranges per class
+// - Residual CFTR function %
+// - Pancreatic sufficiency probability
+// - NBS panel inclusion (UK CLAPA, ACMG 23+4, EU consensus)
+// - Ivacaftor vs ETI eligibility distinction
+// - CFTR-RD vs classic CF association
+// - Age of onset stratification
+// ================================================================
+
+// Newborn screening panels — publicly available variant lists
+const NBS_PANELS = {
+    'UK CLAPA': ['F508del','G542X','G551D','R117H','N1303K','W1282X','R553X','621+1G>T','1717-1G>A','R1162X','G85E','R347P','A455E','3849+10kbC>T','1078delT','2789+5G>A','R560T','Y1092X','711+1G>T','1898+1G>A','2183AA>G','2184delA','3659delC','3905insT','S4X','Q493X','I507del'],
+    'ACMG 23+4': ['F508del','G542X','G551D','R117H','N1303K','W1282X','R553X','621+1G>T','1717-1G>A','R1162X','G85E','R347P','A455E','3849+10kbC>T','1078delT','2789+5G>A','R560T','Y1092X','711+1G>T','1898+1G>A','2183AA>G','2184delA','3659delC'],
+    'EU Consensus': ['F508del','G542X','G551D','R117H','N1303K','W1282X','R553X','621+1G>T','1717-1G>A','R1162X','G85E','R347P','3849+10kbC>T','2789+5G>A','711+1G>T','1898+1G>A','2183AA>G']
+};
+
+// Class-specific clinical reference data
+const CLASS_CLINICAL_DATA = {
+    'I':   { sweat_cl: '≥80 mmol/L (classic CF range)', residual_fn: '<1%',  panc_suff: '<5%',  onset: 'Neonatal / early infancy', cftr_rd: 'Rare — classic CF predominant', ivacaftor: 'Not indicated', eti: 'ETI indicated if ≥1 responsive allele' },
+    'II':  { sweat_cl: '≥80 mmol/L', residual_fn: '0–3%', panc_suff: '<10%', onset: 'Neonatal / infancy', cftr_rd: 'Rare', ivacaftor: 'Not indicated (poor gating)', eti: 'ETI strongly indicated (F508del class)' },
+    'III': { sweat_cl: '60–100 mmol/L', residual_fn: '1–5%', panc_suff: '10–25%', onset: 'Infancy to childhood', cftr_rd: 'Possible with mild allele', ivacaftor: 'Ivacaftor monotherapy indicated (G551D, G1244E, G1349D, G178R, G551S, S1251N, S1255P, S549N, S549R)', eti: 'ETI indicated' },
+    'IV':  { sweat_cl: '30–60 mmol/L (variable — check specific variant)', residual_fn: '5–30%', panc_suff: '30–70%', onset: 'Childhood to adulthood', cftr_rd: 'Common — CBAVD, pancreatitis', ivacaftor: 'Ivacaftor may benefit (R117H context-dependent on poly-T)', eti: 'ETI may benefit — check specific variant' },
+    'V':   { sweat_cl: '30–70 mmol/L', residual_fn: '3–10%', panc_suff: '40–80%', onset: 'Childhood to adulthood', cftr_rd: 'Common — CBAVD, mild lung disease', ivacaftor: 'Generally not indicated', eti: 'ETI benefit uncertain — limited data' },
+    'VI':  { sweat_cl: '40–80 mmol/L', residual_fn: '5–25%', panc_suff: '25–60%', onset: 'Variable', cftr_rd: 'Possible', ivacaftor: 'Not standard', eti: 'ETI under investigation' }
+};
+
+// Modulator eligibility lookup — distinct from binary ETI flag
+const MODULATOR_ELIGIBILITY = {
+    responsive:     { label: 'ETI (Trikafta) indicated',  color: '#34d399', detail: 'Elexacaftor/tezacaftor/ivacaftor combination' },
+    non_responsive: { label: 'No approved modulator',     color: '#f87171', detail: 'Not predicted to respond to current modulators' },
+    unknown:        { label: 'Eligibility uncertain',     color: '#fbbf24', detail: 'Insufficient data — check functional studies' }
+};
+
+// Ivacaftor monotherapy variants (FDA/EMA approved gating mutations)
+const IVACAFTOR_VARIANTS = ['G551D','G1244E','G1349D','G178R','G551S','S1251N','S1255P','S549N','S549R','R117H','E56K','P67L','R74W','D110E','D110H','R117C','L206W','R347H','R352Q','A455E','S977F','F1052V','K1060T','A1067T','G1069R','R1070Q','R1070W','F1074L','D1152H','G1244E','S1251N','S1255P','D1270N'];
+
+function renderClinicalReferencePanel(variant) {
+    const cls = variant.cftr_class;
+    const clsData = cls ? CLASS_CLINICAL_DATA[cls] : null;
+
+    // NBS panel membership
+    const name = (variant.legacy_name || '').toUpperCase();
+    const nbsHits = Object.entries(NBS_PANELS).filter(([panel, variants]) =>
+        variants.some(v => v.toUpperCase() === name || name.includes(v.toUpperCase()))
+    );
+
+    // Ivacaftor specific eligibility
+    const isIvacaftorVariant = IVACAFTOR_VARIANTS.some(v =>
+        v.toUpperCase() === name || (variant.protein_name||'').toUpperCase().includes(v.toUpperCase())
+    );
+
+    // CFTR-RD likelihood
+    const cftrRdClasses = ['IV','V'];
+    const hasCftrRd = cftrRdClasses.includes(cls);
+
+    // Nothing to show if no class assigned
+    if (!clsData && !nbsHits.length) return '';
+
+    const rows = clsData ? [
+        ['Sweat chloride', clsData.sweat_cl],
+        ['Residual CFTR function', clsData.residual_fn],
+        ['Pancreatic sufficiency probability', clsData.panc_suff],
+        ['Typical age of onset', clsData.onset],
+        ['CFTR-related disorder association', clsData.cftr_rd],
+    ] : [];
+
+    const modulatorRow = clsData ? `
+        <div style="padding:8px 12px;border-radius:6px;margin-top:8px;
+             background:${isIvacaftorVariant ? 'rgba(52,211,153,0.06)' : 'rgba(255,255,255,0.03)'};
+             border:1px solid ${isIvacaftorVariant ? 'rgba(52,211,153,0.2)' : 'var(--border)'};">
+            <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Modulator eligibility</div>
+            <div style="font-size:12px;font-weight:600;color:${isIvacaftorVariant ? '#34d399' : 'var(--text-secondary)'};">
+                ${isIvacaftorVariant ? 'Ivacaftor monotherapy approved' : clsData.ivacaftor}
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">${clsData.eti}</div>
+        </div>` : '';
+
+    const nbsPanel = nbsHits.length ? `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+            <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">
+                Newborn screening inclusion
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                ${nbsHits.map(([panel]) => `
+                    <span style="font-size:11px;padding:2px 8px;border-radius:4px;
+                         background:rgba(41,121,255,0.08);border:1px solid rgba(41,121,255,0.2);
+                         color:#60a5fa;font-weight:600;">${escapeHTML(panel)}</span>
+                `).join('')}
+            </div>
+            <div style="font-size:10.5px;color:var(--text-tertiary);margin-top:4px;">
+                This variant is included in ${nbsHits.length} national NBS panel${nbsHits.length!==1?'s':''} — would be detected at birth in these programmes.
+            </div>
+        </div>` :
+        (cls ? `<div style="margin-top:8px;font-size:11px;color:var(--text-tertiary);">
+            <i class="fas fa-info-circle" style="margin-right:4px;"></i>
+            Not included in standard UK/ACMG/EU newborn screening panels
+        </div>` : '');
+
+    return `
+    <div class="detail-section" style="margin-top:0;border-left:3px solid rgba(41,121,255,0.3);">
+        <div class="section-header">
+            <div class="section-header-icon" style="background:rgba(41,121,255,0.1);color:#60a5fa;">
+                <i class="fas fa-hospital-user"></i>
+            </div>
+            <span class="section-title">Clinical reference — Class ${escapeHTML(cls||'?')}</span>
+            <span style="font-size:10px;color:var(--text-tertiary);margin-left:4px;">Population-level estimates · not patient-specific</span>
+        </div>
+        <div class="section-body">
+            <div class="field-grid" style="grid-template-columns:1fr 1fr;">
+                ${rows.map(([label, value]) => `
+                    <div style="padding:6px 0;border-bottom:1px solid var(--border);">
+                        <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;">${escapeHTML(label)}</div>
+                        <div style="font-size:12px;font-weight:600;color:var(--text-primary);">${escapeHTML(value)}</div>
+                    </div>`).join('')}
+            </div>
+            ${modulatorRow}
+            ${nbsPanel}
+        </div>
+    </div>`;
+}
+
 // ---- Clinical alert banner — pure function, no template literal escaping issues ----
 function renderClinicalAlertBanner(variant) {
     const alert = variant.clinical_alert || '';
@@ -8182,6 +8488,12 @@ function renderVariantDetail(variant, fromSearch) {
             </div>
         </div>
         ` : ''}
+
+        <!-- CLINICAL REFERENCE PANEL: NBS, modulator eligibility, class-specific ranges -->
+        ${renderClinicalReferencePanel(variant)}
+
+        <!-- ACMG/AMP CLASSIFICATION PANEL -->
+        ${renderACMGPanel(variant)}
 
         <!-- Clinical Notes Thread -->
         <div class="detail-section" style="margin-top:0">
@@ -8741,7 +9053,7 @@ function previewImportBatch(arr, resultsEl, btn) {
                 ? `<span style="color:#fbbf24;font-size: 11px;">UPDATE existing</span>`
                 : r.hasConflict
                     ? `<span style="color:#60a5fa;font-size: 11px;">protein/cDNA conflict</span>`
-                    : `<span style="color:#4ade80;font-size: 11px;">NEW</span>`;
+                    : `<span style="color:#34d399;font-size: 11px;">NEW</span>`;
         return `<tr class="${cls}">
             <td>${r.rowNum}</td>
             <td>${escapeHTML(r.item.variant_legacy_name||'—')}</td>
@@ -9588,7 +9900,7 @@ function exportClinicalReport(variantOrAll) {
 
     function etiBadge(pred) {
         const map = {
-            responsive:     { label: 'ETI RESPONSIVE',     bg: '#052e16', border: '#166534', color: '#4ade80' },
+            responsive:     { label: 'ETI RESPONSIVE',     bg: '#052e16', border: '#166534', color: '#34d399' },
             non_responsive: { label: 'ETI NON-RESPONSIVE', bg: '#2d1212', border: '#7f1d1d', color: '#f87171' },
             unknown:        { label: 'ETI STATUS UNKNOWN', bg: '#1c1a0a', border: '#713f12', color: '#fbbf24' },
         };
@@ -9664,6 +9976,7 @@ function exportClinicalReport(variantOrAll) {
                         <tr><td>Classification confidence</td><td>${confidence}</td></tr>
                         <tr><td>ETI prediction</td><td><strong>${escapeHTML(v.eti_prediction || '—')}</strong></td></tr>
                         <tr><td>ETI evidence level</td><td>${escapeHTML(v.eti_evidence_level || '—')}</td></tr>
+                        <tr><td>ACMG classification</td><td><strong style="color:${acmgClassColor(computeACMGScore(v).classification)};">${computeACMGScore(v).classification}</strong></td></tr>
                         <tr><td>Data status</td><td>${escapeHTML(v.data_status || '—')}</td></tr>
                     </table>
                 </div>
@@ -9685,6 +9998,9 @@ function exportClinicalReport(variantOrAll) {
                 </div>
                 ${lastValidator ? `<div style="font-size:12px;color:#475569;">Last validated by <strong>${escapeHTML(lastValidator)}</strong>${v.last_validated_at ? ' on ' + new Date(v.last_validated_at).toLocaleDateString('en-GB', {day:'2-digit',month:'long',year:'numeric'}) : ''}</div>` : '<div style="font-size:12px;color:#94a3b8;">No validation record on file.</div>'}
             </div>
+
+            <!-- CLINICAL REFERENCE DATA IN REPORT -->
+            ${buildReportClinicalRefCard(v)}
 
             <!-- EVIDENCE / PUBMED -->
             ${pubmedIds.length ? `
@@ -9751,6 +10067,48 @@ ${pages}
 </body></html>`);
     win.document.close();
     showNotification(`Clinical report generated for ${variants.length} variant${variants.length > 1 ? 's' : ''}`, 'success');
+}
+
+// Report clinical reference card — string concat to avoid template nesting issues
+function buildReportClinicalRefCard(v) {
+    const cls     = v.cftr_class;
+    const clsData = cls ? CLASS_CLINICAL_DATA[cls] : null;
+    if (!clsData) return '';
+
+    const nbsHits = Object.entries(NBS_PANELS).filter(([, vs]) =>
+        vs.some(vn => vn.toUpperCase() === (v.legacy_name||'').toUpperCase()));
+    const isIva = IVACAFTOR_VARIANTS.some(vn => vn.toUpperCase() === (v.legacy_name||'').toUpperCase());
+
+    const cells = [
+        ['Sweat chloride',             clsData.sweat_cl],
+        ['Residual CFTR function',      clsData.residual_fn],
+        ['Pancreatic sufficiency prob.', clsData.panc_suff],
+        ['Age of onset',               clsData.onset],
+        ['CFTR-related disorder',       clsData.cftr_rd],
+        ['Modulator',                  isIva ? 'Ivacaftor monotherapy approved' : clsData.ivacaftor],
+    ].map(([label, val]) =>
+        '<div>' +
+        '<div style="font-size:10px;color:#64748b;margin-bottom:2px;">' + escapeHTML(label) + '</div>' +
+        '<div style="font-size:12px;font-weight:600;color:#0f172a;">' + escapeHTML(val||'—') + '</div>' +
+        '</div>'
+    ).join('');
+
+    const nbsSection = nbsHits.length
+        ? '<div style="border-top:1px solid #e2e8f0;padding-top:10px;">' +
+          '<span style="font-size:10px;color:#64748b;margin-right:8px;">Newborn screening:</span>' +
+          nbsHits.map(([panel]) =>
+            '<span style="font-size:11px;font-weight:600;color:#2563eb;background:#eff6ff;' +
+            'border:1px solid #bfdbfe;border-radius:4px;padding:1px 7px;margin-right:4px;">' +
+            escapeHTML(panel) + '</span>'
+          ).join('') + '</div>'
+        : '<div style="border-top:1px solid #e2e8f0;padding-top:8px;font-size:11px;color:#94a3b8;">' +
+          'Not on standard NBS panels (UK CLAPA / ACMG 23+4 / EU Consensus)</div>';
+
+    return '<div class="report-card" style="margin:0 24px 16px;">' +
+        '<div class="report-card-title">Clinical Reference — Class ' + escapeHTML(cls||'?') +
+        ' (population-level estimates)</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">' +
+        cells + '</div>' + nbsSection + '</div>';
 }
 
 function buildExportMenu() {
@@ -12262,7 +12620,7 @@ Object.assign(window, {
     showValidationModal, closeValidationModal, submitValidation,
     showDashboard, closeDashboard, refreshDashboardStats, exportReport, exportFullReport,
     exportClinicalReport, toggleExportMenu,
-    showEvidenceModal, closeAddEvidenceModal, selectEvidenceType, saveEvidenceLink,
+    showEvidenceModal, closeAddEvidenceModal, selectEvidenceType,
     showAllEvidence, closeAllEvidenceModal, copyToClipboard,
     downloadTemplate, processBulkImport,
     setDashTab, setSITab, exportSearchReport, exportSearchPDF, renderGeoTab,
@@ -15694,6 +16052,12 @@ Object.assign(window, {
     heliosRunHealthCheck, heliosToggleItem, heliosClearConsole,
     heliosToggleSource, heliosMonitorCurrentVariant,
     heliosRemoveMonitor, heliosLoadInbox, heliosLoadAudit, heliosLoadScanHistory,
+    // Compound genotype calculator + MDT
+    openCompoundGenotypeCalculator, runCompoundGenotypeCalculation, generateMDTReport,
+    // ACMG
+    computeACMGScore, renderACMGPanel,
+    // Clinical reference
+    renderClinicalReferencePanel, renderClinicalAlertBanner,
     // Areas 2-5 search additions
     saveMissNote, highlightMatch,
     renderVelocityHeatmap, renderCoSearchClusters,
@@ -16089,6 +16453,331 @@ setTimeout(() => heliosScheduledScan(), 8000);
 // evidence level, validation count, completeness score.
 // Clinically useful for compound heterozygotes.
 // ================================================================
+
+// ================================================================
+// COMPOUND GENOTYPE CALCULATOR
+// Document recommendation: "the clinical question answered in MDT every week"
+// Accepts two alleles, computes: phenotype prediction, modulator eligibility,
+// FEV1 trajectory estimate, pancreatic status, NBS detection, CFTR-RD risk
+// ================================================================
+
+function openCompoundGenotypeCalculator() {
+    const existing = document.getElementById('compGenoCalc');
+    if (existing) { existing.remove(); return; }
+
+    const variants = STATE.variants;
+    const options  = variants.slice(0, 500).map(v =>
+        `<option value="${escapeAttr(v.legacy_name)}">${escapeHTML(v.legacy_name)}${v.cftr_class ? ' (Class '+v.cftr_class+')' : ''}</option>`
+    ).join('');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'compGenoCalc';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:999998;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    overlay.innerHTML = `
+    <div style="background:#0a1220;border:1px solid rgba(41,121,255,0.3);border-radius:16px;
+         padding:28px;width:560px;max-height:90vh;overflow-y:auto;
+         box-shadow:0 32px 80px rgba(0,0,0,0.9);">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+            <div style="width:38px;height:38px;border-radius:10px;background:rgba(41,121,255,0.12);
+                 border:1px solid rgba(41,121,255,0.3);display:flex;align-items:center;justify-content:center;">
+                <i class="fas fa-dna" style="color:#60a5fa;font-size:15px;"></i>
+            </div>
+            <div>
+                <div style="font-size:15px;font-weight:700;color:#f0f6ff;">Compound genotype calculator</div>
+                <div style="font-size:11px;color:#5a7aaa;">Enter both alleles — receive full clinical prediction</div>
+            </div>
+            <button onclick="document.getElementById('compGenoCalc').remove()"
+                    style="margin-left:auto;background:none;border:none;color:#5a7aaa;cursor:pointer;font-size:16px;">✕</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+            <div>
+                <label style="font-size:11px;color:#5a7aaa;display:block;margin-bottom:5px;">Allele 1 (maternal)</label>
+                <input id="cgcAllele1" list="cgcOptions1" placeholder="e.g. F508del"
+                    style="width:100%;height:38px;background:rgba(4,8,15,0.8);border:1.5px solid rgba(41,121,255,0.2);
+                    border-radius:8px;color:#f0f6ff;font-family:var(--font-mono);font-size:13px;padding:0 10px;
+                    outline:none;box-sizing:border-box;"
+                    onfocus="this.style.borderColor='rgba(41,121,255,0.6)'" onblur="this.style.borderColor='rgba(41,121,255,0.2)'">
+                <datalist id="cgcOptions1">${options}</datalist>
+            </div>
+            <div>
+                <label style="font-size:11px;color:#5a7aaa;display:block;margin-bottom:5px;">Allele 2 (paternal)</label>
+                <input id="cgcAllele2" list="cgcOptions2" placeholder="e.g. G551D"
+                    style="width:100%;height:38px;background:rgba(4,8,15,0.8);border:1.5px solid rgba(41,121,255,0.2);
+                    border-radius:8px;color:#f0f6ff;font-family:var(--font-mono);font-size:13px;padding:0 10px;
+                    outline:none;box-sizing:border-box;"
+                    onfocus="this.style.borderColor='rgba(41,121,255,0.6)'" onblur="this.style.borderColor='rgba(41,121,255,0.2)'">
+                <datalist id="cgcOptions2">${options}</datalist>
+            </div>
+        </div>
+        <button onclick="runCompoundGenotypeCalculation()"
+                style="width:100%;height:40px;background:#2979ff;border:none;border-radius:8px;
+                color:white;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:16px;
+                font-family:var(--font-body);transition:background .15s;"
+                onmouseover="this.style.background='#1a5fd9'" onmouseout="this.style.background='#2979ff'">
+            <i class="fas fa-calculator" style="margin-right:8px;font-size:12px;"></i>Calculate compound prediction
+        </button>
+        <div id="cgcResult"></div>
+    </div>`;
+    document.body.appendChild(overlay);
+    setTimeout(() => document.getElementById('cgcAllele1')?.focus(), 50);
+}
+
+function runCompoundGenotypeCalculation() {
+    const a1name = document.getElementById('cgcAllele1')?.value.trim();
+    const a2name = document.getElementById('cgcAllele2')?.value.trim();
+    const result = document.getElementById('cgcResult');
+    if (!result) return;
+
+    if (!a1name || !a2name) {
+        result.innerHTML = '<div style="font-size:12px;color:#f87171;padding:8px 0;">Please enter both alleles.</div>';
+        return;
+    }
+
+    const v1 = STATE.variantsByLegacyName.get(a1name) ||
+               STATE.variants.find(v => v.legacy_name.toLowerCase() === a1name.toLowerCase());
+    const v2 = STATE.variantsByLegacyName.get(a2name) ||
+               STATE.variants.find(v => v.legacy_name.toLowerCase() === a2name.toLowerCase());
+
+    const notFound = [!v1 && a1name, !v2 && a2name].filter(Boolean);
+    if (notFound.length) {
+        result.innerHTML = `<div style="font-size:12px;color:#fbbf24;padding:8px 0;">
+            <i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>
+            Not found in NeumuacFQ: ${notFound.map(n => `<strong>${escapeHTML(n)}</strong>`).join(', ')}.
+            Robotic search will be triggered.
+        </div>`;
+        notFound.forEach(q => triggerRoboticSearchOnMiss(normaliseQuery(q), null));
+        return;
+    }
+
+    const verdict = computeCompoundHetVerdict(v1, v2);
+    const cls1 = CLASS_CLINICAL_DATA[v1.cftr_class] || {};
+    const cls2 = CLASS_CLINICAL_DATA[v2.cftr_class] || {};
+
+    // Dominant allele drives phenotype — worse residual function
+    const dom = verdict.dominantAllele;
+    const domCls = CLASS_CLINICAL_DATA[dom.cftr_class] || {};
+
+    // NBS detection
+    const nbsHits = Object.entries(NBS_PANELS).filter(([, vs]) =>
+        vs.some(vn => vn.toUpperCase() === v1.legacy_name.toUpperCase() ||
+                      vn.toUpperCase() === v2.legacy_name.toUpperCase()));
+
+    // Phenotype severity estimate
+    const severityMap = { 'I':5,'II':5,'III':4,'IV':3,'V':3,'VI':3 };
+    const avgSeverity = Math.round(((severityMap[v1.cftr_class]||2) + (severityMap[v2.cftr_class]||2)) / 2);
+    const severityLabel = avgSeverity >= 5 ? 'Classic CF — severe phenotype expected'
+        : avgSeverity >= 4 ? 'Moderate-severe CF — variable presentation'
+        : 'Mild CF or CFTR-RD — atypical presentation possible';
+    const severityColor = avgSeverity >= 5 ? '#f87171' : avgSeverity >= 4 ? '#fb923c' : '#60a5fa';
+
+    const modHTML = verdict.eligibleModulators.length
+        ? verdict.eligibleModulators.map(m => `
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;
+                 background:${m.color}10;border:1px solid ${m.color}30;margin-bottom:4px;">
+                <div style="width:8px;height:8px;border-radius:50%;background:${m.color};flex-shrink:0;"></div>
+                <div>
+                    <div style="font-size:12px;font-weight:700;color:${m.color};">${escapeHTML(m.name)}</div>
+                    <div style="font-size:10px;color:var(--text-tertiary);">${escapeHTML(m.description)}</div>
+                </div>
+            </div>`).join('')
+        : `<div style="padding:8px 10px;border-radius:6px;background:rgba(248,113,113,0.08);
+               border:1px solid rgba(248,113,113,0.2);font-size:12px;color:#f87171;">
+               No approved modulators for this combination. Consider clinical trial eligibility.
+           </div>`;
+
+    result.innerHTML = `
+    <div style="border-top:1px solid var(--border);padding-top:16px;">
+        <!-- Allele summary -->
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:14px;">
+            <div style="padding:10px 12px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border);">
+                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:2px;">Allele 1</div>
+                <div style="font-size:14px;font-weight:700;color:#f0f6ff;font-family:var(--font-mono);">${escapeHTML(v1.legacy_name)}</div>
+                <div style="font-size:10px;color:var(--text-tertiary);">Class ${escapeHTML(v1.cftr_class||'?')} · ${escapeHTML(v1.eti_prediction||'unknown')}</div>
+            </div>
+            <div style="font-size:18px;color:var(--text-tertiary);">+</div>
+            <div style="padding:10px 12px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border);">
+                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:2px;">Allele 2</div>
+                <div style="font-size:14px;font-weight:700;color:#f0f6ff;font-family:var(--font-mono);">${escapeHTML(v2.legacy_name)}</div>
+                <div style="font-size:10px;color:var(--text-tertiary);">Class ${escapeHTML(v2.cftr_class||'?')} · ${escapeHTML(v2.eti_prediction||'unknown')}</div>
+            </div>
+        </div>
+
+        <!-- Phenotype prediction -->
+        <div style="padding:10px 14px;border-radius:8px;background:${severityColor}10;border:1px solid ${severityColor}30;margin-bottom:10px;">
+            <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">Predicted phenotype</div>
+            <div style="font-size:13px;font-weight:700;color:${severityColor};">${severityLabel}</div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-top:3px;">
+                Dominant allele: ${escapeHTML(dom.legacy_name)} (Class ${escapeHTML(dom.cftr_class||'?')}) ·
+                Sweat Cl⁻: ${escapeHTML(domCls.sweat_cl||'—')} ·
+                Pancreatic sufficiency: ${escapeHTML(domCls.panc_suff||'—')}
+            </div>
+        </div>
+
+        <!-- Modulator eligibility -->
+        <div style="margin-bottom:10px;">
+            <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Modulator eligibility</div>
+            ${modHTML}
+        </div>
+
+        <!-- NBS + CFTR-RD -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+            <div style="padding:8px 10px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border);">
+                <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px;">NBS detection</div>
+                <div style="font-size:12px;font-weight:600;color:${nbsHits.length ? '#34d399' : '#fbbf24'};">
+                    ${nbsHits.length ? 'Would be detected' : 'May not be detected'}
+                </div>
+                <div style="font-size:10px;color:var(--text-tertiary);">
+                    ${nbsHits.length ? nbsHits.map(([p])=>p).join(', ') : 'Not on standard NBS panels'}
+                </div>
+            </div>
+            <div style="padding:8px 10px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border);">
+                <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px;">Age of onset</div>
+                <div style="font-size:12px;font-weight:600;color:var(--text-primary);">${escapeHTML(domCls.onset||'—')}</div>
+                <div style="font-size:10px;color:var(--text-tertiary);">${escapeHTML(domCls.cftr_rd||'—')}</div>
+            </div>
+        </div>
+
+        <div style="font-size:10px;color:var(--text-tertiary);line-height:1.6;border-top:1px solid var(--border);padding-top:8px;">
+            NeumuacFQ compound genotype prediction · For MDT discussion only · Not a substitute for clinical genetics assessment.
+            <button onclick="generateMDTReport('${escapeAttr(v1.legacy_name)}','${escapeAttr(v2.legacy_name)}')"
+                    style="margin-left:10px;font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid rgba(41,121,255,0.3);
+                    background:rgba(41,121,255,0.08);color:#60a5fa;cursor:pointer;font-family:var(--font-body);">
+                <i class="fas fa-file-medical" style="font-size:10px;margin-right:4px;"></i>Generate MDT report
+            </button>
+        </div>
+    </div>`;
+}
+
+function generateMDTReport(allele1Name, allele2Name) {
+    const v1 = STATE.variantsByLegacyName.get(allele1Name);
+    const v2 = STATE.variantsByLegacyName.get(allele2Name);
+    if (!v1 || !v2) return;
+
+    const verdict   = computeCompoundHetVerdict(v1, v2);
+    const dom       = verdict.dominantAllele;
+    const domCls    = CLASS_CLINICAL_DATA[dom.cftr_class] || {};
+    const acmg1     = computeACMGScore(v1);
+    const acmg2     = computeACMGScore(v2);
+    const modNames  = verdict.eligibleModulators.map(m => m.name).join(', ') || 'None currently approved';
+    const now       = new Date();
+    const dateStr   = now.toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
+    const institution = STATE.searchIntelligence?.hospital || 'NeumuacFQ';
+    const nbsHits   = Object.entries(NBS_PANELS).filter(([, vs]) =>
+        vs.some(vn => vn.toUpperCase() === v1.legacy_name.toUpperCase() ||
+                      vn.toUpperCase() === v2.legacy_name.toUpperCase()));
+
+    // Pre-compute all values before win.document.write - the new window
+    // has no access to NeumuacFQ functions
+    const acmg1str = acmg1.classification;
+    const acmg1col = acmgClassColor(acmg1.classification);
+    const acmg1crit = acmg1.met.pathogenic.concat(acmg1.met.benign).join(', ') || 'none';
+    const acmg1scr = (acmg1.score > 0 ? '+' : '') + acmg1.score;
+    const acmg2str = acmg2.classification;
+    const acmg2col = acmgClassColor(acmg2.classification);
+    const acmg2crit = acmg2.met.pathogenic.concat(acmg2.met.benign).join(', ') || 'none';
+    const acmg2scr = (acmg2.score > 0 ? '+' : '') + acmg2.score;
+
+    const win = window.open('', '_blank', 'width=860,height=700');
+    win.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<title>MDT Report — ${escapeHTML(allele1Name)} / ${escapeHTML(allele2Name)}</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+body { font-family: 'IBM Plex Sans', sans-serif; margin: 0; padding: 0; background: #fff; color: #0f172a; font-size: 13px; line-height: 1.6; }
+.page { max-width: 820px; margin: 0 auto; padding: 32px 40px 48px; }
+.header { border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+.title { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: #0f172a; margin: 0 0 4px; }
+.subtitle { font-size: 12px; color: #64748b; }
+.section { margin-bottom: 20px; }
+.section-title { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 10px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.card { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 14px; }
+.card-label { font-size: 10px; color: #94a3b8; margin-bottom: 3px; }
+.card-value { font-size: 13px; font-weight: 600; color: #0f172a; }
+.mono { font-family: 'IBM Plex Mono', monospace; }
+.badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; letter-spacing: .06em; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+td { padding: 5px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+td:first-child { color: #64748b; width: 45%; font-weight: 500; }
+.footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; }
+.no-print { background: #0f172a; padding: 10px 20px; display: flex; gap: 12px; align-items: center; position: sticky; top: 0; }
+@media print { .no-print { display: none !important; } @page { margin: 14mm 16mm; size: A4 portrait; } }
+</style></head><body>
+<div class="no-print">
+    <span style="font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:#fff;">NeumuacFQ MDT Report</span>
+    <button onclick="window.print()" style="margin-left:auto;padding:6px 18px;background:#2563eb;border:none;border-radius:5px;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">Print / Save PDF</button>
+    <button onclick="window.close()" style="padding:6px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:5px;color:#cbd5e1;font-size:12px;cursor:pointer;">Close</button>
+</div>
+<div class="page">
+    <div class="header">
+        <div>
+            <div class="title">CF Genetics MDT Report</div>
+            <div class="subtitle">${escapeHTML(institution)} · ${dateStr} · Generated by NeumuacFQ CFTR Precision Medicine Platform</div>
+        </div>
+        <div style="text-align:right;font-size:11px;color:#64748b;">
+            <div><strong>CONFIDENTIAL</strong></div>
+            <div>For MDT discussion only</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Genotype</div>
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-label">Allele 1</div>
+                <div class="card-value mono" style="font-size:18px;">${escapeHTML(v1.legacy_name)}</div>
+                <div style="font-size:11px;color:#64748b;margin-top:4px;">${escapeHTML(v1.protein_name||'')} · Class ${escapeHTML(v1.cftr_class||'?')} · ACMG: ${acmg1str}</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Allele 2</div>
+                <div class="card-value mono" style="font-size:18px;">${escapeHTML(v2.legacy_name)}</div>
+                <div style="font-size:11px;color:#64748b;margin-top:4px;">${escapeHTML(v2.protein_name||'')} · Class ${escapeHTML(v2.cftr_class||'?')} · ACMG: ${acmg2str}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Clinical prediction</div>
+        <div class="grid-3">
+            <div class="card"><div class="card-label">Expected sweat chloride</div><div class="card-value">${escapeHTML(domCls.sweat_cl||'—')}</div></div>
+            <div class="card"><div class="card-label">Residual CFTR function</div><div class="card-value">${escapeHTML(domCls.residual_fn||'—')}</div></div>
+            <div class="card"><div class="card-label">Pancreatic sufficiency</div><div class="card-value">${escapeHTML(domCls.panc_suff||'—')}</div></div>
+            <div class="card"><div class="card-label">Age of onset</div><div class="card-value">${escapeHTML(domCls.onset||'—')}</div></div>
+            <div class="card"><div class="card-label">CFTR-related disorder</div><div class="card-value">${escapeHTML(domCls.cftr_rd||'—')}</div></div>
+            <div class="card"><div class="card-label">NBS detection</div><div class="card-value" style="color:${nbsHits.length?'#16a34a':'#92400e'}">${nbsHits.length ? 'Detected — '+nbsHits.map(([p])=>p).join(', ') : 'Not on standard panels'}</div></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Therapeutic eligibility</div>
+        <table>
+            <tr><td>Recommended modulator(s)</td><td><strong>${escapeHTML(modNames)}</strong></td></tr>
+            <tr><td>ETI eligibility (Trikafta)</td><td><strong style="color:${verdict.trikaftaEligible?'#16a34a':'#dc2626'}">${verdict.trikaftaEligible ? 'Eligible' : 'Not eligible — check specific criteria'}</strong></td></tr>
+            <tr><td>Dominant allele (phenotype driver)</td><td class="mono">${escapeHTML(dom.legacy_name)} (Class ${escapeHTML(dom.cftr_class||'?')})</td></tr>
+            ${verdict.etiMismatch ? '<tr><td>Note</td><td style="color:#92400e;">ETI predictions differ between alleles — eligibility driven by dominant allele. Specialist review recommended.</td></tr>' : ''}
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">ACMG/AMP pathogenicity classification</div>
+        <table>
+            <tr><td>${escapeHTML(v1.legacy_name)}</td><td><strong>${acmg1str}</strong> (score ${acmg1scr}) · Met: ${acmg1crit}</td></tr>
+            <tr><td>${escapeHTML(v2.legacy_name)}</td><td><strong>${acmg2str}</strong> (score ${acmg2scr}) · Met: ${acmg2crit}</td></tr>
+        </table>
+        <p style="font-size:10px;color:#94a3b8;margin:8px 0 0;">ACMG/AMP 2015 criteria · Richards et al. Genet Med 17:405 (2015) · Automated scoring — verify with expert review before clinical reporting.</p>
+    </div>
+
+    <div class="footer">
+        This report was generated by NeumuacFQ CFTR Precision Medicine Platform and is intended for MDT discussion only.
+        All predictions are based on population-level data and published literature. They do not replace clinical assessment,
+        functional studies, or specialist genetics review. Modulator eligibility should be confirmed against current EMA/FDA prescribing information.
+        NeumuacFQ v4 · ${dateStr}
+    </div>
+</div></body></html>`);
+    win.document.close();
+}
 
 // ================================================================
 // AREA 3 — SEARCH VELOCITY HEATMAP
