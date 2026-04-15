@@ -5401,15 +5401,26 @@ async function triggerRoboticSearchOnMiss(query, missId) {
         const recentCount = scoredPapers.filter(p => p.year && p.year >= new Date().getFullYear() - 3).length;
         const etiRelated  = scoredPapers.filter(p => p.title && /trikafta|kalydeco|elexacaftor|ivacaftor|modulator|ETI/i.test(p.title)).length;
 
+        // Confidence with breakdown — each component labelled so the
+        // Helios curator sees exactly why the score is what it is.
+        const confComponents = {
+            base:          50,
+            pubmed:        pubmedPapers.length > 0 ? 15 : 0,
+            clinvar:       clinvarHits.length  > 0 ? 15 : 0,
+            recent:        recentCount         > 0 ? 10 : 0,
+            eti:           proposal.hasEtiEvidence  ? 10 : 0,
+            classProposed: proposal.cftr_class      ? 10 : 0,
+            determination: proposal.determination   ?  5 : 0,
+            functional:    proposal.hasFunctionalStudy ? 5 : 0,
+        };
         const confidence = Math.min(
-            50
-            + (pubmedPapers.length > 0 ? 15 : 0)
-            + (clinvarHits.length  > 0 ? 15 : 0)
-            + (recentCount         > 0 ? 10 : 0)
-            + (etiRelated          > 0 ? 10 : 0)
-            + (proposal.cftr_class       ? 10 : 0),
-            92
+            Object.values(confComponents).reduce((a, b) => a + b, 0),
+            95
         );
+        const confidenceBreakdown = Object.entries(confComponents)
+            .filter(([, v]) => v > 0)
+            .map(([k, v]) => k + ' +' + v)
+            .join(', ');
 
         const allEvidence = [
             ...scoredPapers.map(p => ({ ...p, source_type: 'pubmed' })),
@@ -5425,11 +5436,11 @@ async function triggerRoboticSearchOnMiss(query, missId) {
                 item_type:        'MISS_RESOLVED',
                 priority:         'URGENT',
                 variant_name:     query,
-                bot_summary:      `Robotic scan: ${sourceSummary} found for "${query}"${proposal.cftr_class ? ` — proposed Class ${proposal.cftr_class}` : ''}`,
-                bot_reasoning:    buildRoboticReasoning(query, scoredPapers, clinvarHits, cftr2Hits, proposal, recentCount, etiRelated),
+                bot_summary:      buildRoboticSummary(query, sourceSummary, proposal),
+                bot_reasoning:    buildRoboticReasoning(query, scoredPapers, clinvarHits, cftr2Hits, proposal, recentCount, etiRelated) + ' Confidence breakdown: ' + confidenceBreakdown + '.',
                 bot_confidence:   confidence,
-                proposed_field:   proposal.cftr_class ? 'cftr_class' : null,
-                proposed_value:   proposal.cftr_class || null,
+                proposed_field:   proposal.cftr_class ? 'cftr_class' : proposal.determination ? 'final_determination' : null,
+                proposed_value:   proposal.cftr_class || proposal.determination || null,
                 evidence_payload: JSON.stringify(allEvidence.slice(0, 10)),
                 scan_source:      'ROBOTIC_AUTO',
                 scan_run_id:      runId,
@@ -5564,33 +5575,126 @@ async function scoreEvidenceQuality(papers) {
 }
 
 function deriveClassificationProposal(papers, clinvarHits) {
-    // Look for class mentions in titles/abstracts
-    const classPattern = /class\s+(I{1,3}V?|VI?)/i;
-    const etiPattern   = /(responsive|non.?responsive|ETI.?eligible)/i;
-    const classVotes   = {};
-    papers.forEach(p => {
-        const m = (p.title || '').match(classPattern);
-        if (m) {
-            const cls = m[1].toUpperCase();
-            classVotes[cls] = (classVotes[cls] || 0) + (p.quality_score || 5);
+    const classPattern      = /\bclass\s+(I{1,3}V?|VI?)\b/i;
+    const etiYesPattern     = /\b(responsive|ivacaftor.responsive|ETI.eligible|modulator.responsive|trikafta.eligible|kalydeco.eligible)\b/i;
+    const etiNoPattern      = /\b(non.responsive|not.responsive|unresponsive|modulator.ineligible)\b/i;
+    const pathPattern       = /\b(pathogenic|disease.causing|CF.causing|loss.of.function)\b/i;
+    const vusPattern        = /\b(uncertain significance|VUS|variant of uncertain)\b/i;
+    const benignPattern     = /\b(benign|non.CF.causing|polymorphism)\b/i;
+    const gatingPattern     = /\b(gating.defect|gating.mutation|channel.gating|CFTR.gating)\b/i;
+    const traffickPattern   = /\b(trafficking|misfolding|processing.defect)\b/i;
+    const functionalPattern = /\b(functional.study|Ussing|organoid|swelling.assay|FRT.cell)\b/i;
+
+    const classVotes = {};
+    const etiVotes   = { yes: 0, no: 0 };
+    const citations  = { cftr_class: null, eti: null, determination: null, functional: null };
+    let determination = null;
+
+    // ClinVar is highest-weight source
+    clinvarHits.forEach(c => {
+        const sig = (c.clinical_significance || '').toLowerCase();
+        if (sig.includes('pathogenic') && !sig.includes('uncertain')) {
+            if (!determination) { determination = 'CF-causing'; citations.determination = 'ClinVar (' + c.id + ')'; }
+        } else if (sig.includes('uncertain')) {
+            if (!determination) { determination = 'Variant of Uncertain Significance'; citations.determination = 'ClinVar (' + c.id + ')'; }
+        } else if (sig.includes('benign')) {
+            if (!determination) { determination = 'Non-CF-causing'; citations.determination = 'ClinVar (' + c.id + ')'; }
         }
     });
-    const topClass = Object.entries(classVotes).sort((a,b) => b[1]-a[1])[0]?.[0] || null;
-    return { cftr_class: topClass };
+
+    // PubMed paper titles — weighted by quality score
+    papers.forEach(p => {
+        const text   = (p.title || '');
+        const weight = p.quality_score || 5;
+        const cite   = (p.authors ? p.authors.split(',')[0] + ' et al.' : 'PMID ' + p.pmid) + ' (' + (p.year || '?') + ')';
+
+        const classMatch = text.match(classPattern);
+        if (classMatch) {
+            const cls = classMatch[1].toUpperCase().replace('IIIV','IV').replace('IIV','IV');
+            classVotes[cls] = (classVotes[cls] || 0) + weight;
+            if (!citations.cftr_class) citations.cftr_class = cite;
+        }
+        if (gatingPattern.test(text))   { classVotes['III'] = (classVotes['III'] || 0) + weight * 0.8; if (!citations.cftr_class) citations.cftr_class = cite; }
+        if (traffickPattern.test(text)) { classVotes['II']  = (classVotes['II']  || 0) + weight * 0.8; if (!citations.cftr_class) citations.cftr_class = cite; }
+
+        if (etiYesPattern.test(text)) { etiVotes.yes += weight; if (!citations.eti) citations.eti = cite; }
+        if (etiNoPattern.test(text))  { etiVotes.no  += weight; if (!citations.eti) citations.eti = cite; }
+
+        if (!determination) {
+            if (pathPattern.test(text))        { determination = 'CF-causing';                        citations.determination = cite; }
+            else if (vusPattern.test(text))    { determination = 'Variant of Uncertain Significance'; citations.determination = cite; }
+            else if (benignPattern.test(text)) { determination = 'Non-CF-causing';                    citations.determination = cite; }
+        }
+
+        if (functionalPattern.test(text) && !citations.functional) citations.functional = cite;
+    });
+
+    const topClass  = Object.entries(classVotes).sort((a,b) => b[1]-a[1])[0]?.[0] || null;
+    const etiResult = etiVotes.yes > etiVotes.no ? 'responsive'
+                    : etiVotes.no  > etiVotes.yes ? 'non_responsive'
+                    : null;
+
+    return {
+        cftr_class:         topClass,
+        eti_prediction:     etiResult,
+        determination,
+        citations,
+        hasEtiEvidence:     etiVotes.yes + etiVotes.no > 0,
+        hasFunctionalStudy: !!citations.functional,
+    };
+}
+
+
+function buildRoboticSummary(query, sourceSummary, proposal) {
+    const parts = [sourceSummary + ' found for "' + query + '"'];
+    if (proposal.cftr_class)      parts.push('proposed Class ' + proposal.cftr_class + (proposal.citations.cftr_class ? ' (' + proposal.citations.cftr_class + ')' : ''));
+    if (proposal.eti_prediction)  parts.push(proposal.eti_prediction === 'responsive' ? 'ETI responsive' : 'ETI non-responsive');
+    if (proposal.determination)   parts.push(proposal.determination);
+    if (proposal.hasFunctionalStudy) parts.push('functional study cited');
+    return parts.join(' · ');
 }
 
 function buildRoboticReasoning(query, papers, clinvar, cftr2, proposal, recentCount, etiRelated) {
+    const c = proposal.citations || {};
     const lines = [
-        `NeumuacFQ robotic scan for "${query}" completed across PubMed, ClinVar, and CFTR2.`,
-        papers.length   ? `PubMed: ${papers.length} paper${papers.length!==1?'s':''} found${recentCount ? `, ${recentCount} published in the last 3 years` : ''}.` : 'PubMed: no results.',
-        clinvar.length  ? `ClinVar: ${clinvar.length} clinical record${clinvar.length!==1?'s':''} found.` : 'ClinVar: no results.',
-        cftr2.length    ? `CFTR2/reference: ${cftr2.length} relevant publication${cftr2.length!==1?'s':''}.` : '',
-        etiRelated      ? `${etiRelated} paper${etiRelated!==1?'s':''} discuss modulator/ETI response — review for therapy eligibility.` : '',
-        proposal.cftr_class ? `Evidence suggests Class ${proposal.cftr_class} based on title analysis — verify before approving.` : 'No class could be proposed from titles alone — manual review required.',
-        'All evidence attached. Approve to create variant and resolve the miss queue entry.'
-    ].filter(Boolean);
+        'Robotic scan for "' + query + '" completed across PubMed, ClinVar, and CFTR2.',
+    ];
+
+    // Lead with conclusions, cite the source inline
+    if (proposal.cftr_class) {
+        lines.push('CFTR Class ' + proposal.cftr_class + ' proposed' + (c.cftr_class ? ' (' + c.cftr_class + ')' : '') + ' — verify before approving.');
+    } else {
+        lines.push('CFTR class could not be determined from available evidence — manual classification required.');
+    }
+
+    if (proposal.eti_prediction) {
+        const etiLabel = proposal.eti_prediction === 'responsive' ? 'ETI responsive' : 'ETI non-responsive';
+        lines.push(etiLabel + ' inferred' + (c.eti ? ' (' + c.eti + ')' : '') + '.');
+    } else if (proposal.hasEtiEvidence) {
+        lines.push('ETI evidence found but conflicting — review modulator eligibility manually.');
+    } else {
+        lines.push('No ETI / modulator response data found in available sources.');
+    }
+
+    if (proposal.determination) {
+        lines.push('Final determination: ' + proposal.determination + (c.determination ? ' (' + c.determination + ')' : '') + '.');
+    }
+
+    if (proposal.hasFunctionalStudy) {
+        lines.push('Functional study data mentioned' + (c.functional ? ' (' + c.functional + ')' : '') + ' — relevant for ACMG PS3 criterion.');
+    }
+
+    // Evidence summary
+    const parts = [];
+    if (papers.length)  parts.push(papers.length + ' PubMed paper' + (papers.length !== 1 ? 's' : '') + (recentCount ? ', ' + recentCount + ' recent' : ''));
+    if (clinvar.length) parts.push(clinvar.length + ' ClinVar record' + (clinvar.length !== 1 ? 's' : ''));
+    if (cftr2.length)   parts.push(cftr2.length + ' CFTR2/reference entry');
+    if (parts.length)   lines.push('Sources: ' + parts.join(', ') + '.');
+
+    lines.push('All evidence attached. Approve to create variant and resolve miss queue.');
     return lines.join(' ');
 }
+
 
 // ========== PHASE 1: WIRE ROBOTIC SCAN INTO persistSearchEvent ==========
 // Called automatically whenever a miss is logged — no curator button needed
@@ -7949,15 +8053,20 @@ function selectVariant(name, fromSearch) {
     if (!variant) return;
     STATE.view.selectedVariant = variant;
     helixHistoryPush(variant);
-    // Area 4: save to cross-session search history
     saveToSearchHistory(name, variant.id, variant.legacy_name);
     helixHideMissAction();
-    helixResetDetailEmpty();     // ← reset not-found state in main panel
-    renderVariantList(); // update selection highlight
+    helixResetDetailEmpty();
+    renderVariantList();
     renderVariantDetail(variant, fromSearch || false);
-    // Flash the row green if this came from a search
-    // row-hit-flash removed — sustained edge system handles visual confirmation
-    // (triggerHitFlash adds exact-confirmed or exact-incomplete class)
+
+    // Auto-scroll the detail panel into view — on narrow screens the detail
+    // panel is below the fold after selecting from the sidebar list.
+    requestAnimationFrame(() => {
+        const detail = document.getElementById('variantDetail');
+        if (detail && !detail.classList.contains('hidden')) {
+            detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
 }
 
 function clearSearch() {
@@ -11898,11 +12007,16 @@ function initSearch() {
             return;
         }
 
-        // Enter — select highlighted row OR log search
+        // Enter — select highlighted row, or auto-select if single exact match
         if (e.key === 'Enter') {
             if (KB.highlightIndex >= 0 && page[KB.highlightIndex]) {
                 e.preventDefault();
                 selectVariant(page[KB.highlightIndex].legacy_name, true);
+                KB.highlightIndex = -1;
+            } else if (STATE.view.filteredVariants.length === 1) {
+                // Single result — select it directly, no arrow key needed
+                e.preventDefault();
+                selectVariant(STATE.view.filteredVariants[0].legacy_name, true);
                 KB.highlightIndex = -1;
             } else {
                 clearTimeout(STATE.ui.logTimeout);
@@ -19148,10 +19262,10 @@ async function _lookupExecute(query) {
 
     // Merge & score evidence
     const result = _lookupBuildResult(query, clinvar, cftr2, pubmed || []);
-    return result;
-}
 
-// ── ClinVar fetch (real NCBI E-utilities, public API no key needed) ──
+    return result;
+
+// ClinVar fetch (real NCBI E-utilities, public API no key needed) ──
 async function _lookupClinVar(query) {
     try {
         const searchTerm = encodeURIComponent(query + '[variant name] OR ' + query + '[gene/phenotype]');
@@ -19280,6 +19394,11 @@ function _lookupBuildResult(query, clinvar, cftr2, pubmed) {
         confidence,
         missingCount,
         completeness,   // 'full' | 'partial' | 'minimal'
+        // Evidence synthesis — conclusions with citations, built from pubmed titles + ClinVar sig
+        synthesis: deriveClassificationProposal(
+            (pubmed || []).map(p => ({ ...p, quality_score: 5 })),
+            clinvar ? [{ id: clinvar.uid, clinical_significance: clinvar.clinicalSig }] : []
+        ),
     };
 }
 
@@ -19507,19 +19626,71 @@ function lookupRenderModalResult(result, activeTab) {
     // Tab bodies
     const F = result.fields;
     if (activeTab === 'clinical') {
+        // Synthesis panel — built from what the bot extracted from ClinVar + PubMed titles.
+        // Shows conclusions with inline citations, not a list of papers.
+        const syn = result.synthesis || {};  // populated by _lookupBuildResult from deriveClassificationProposal
+        const cit = syn.citations || {};
+        const synHTML = (syn.cftr_class || syn.eti_prediction || syn.determination) ? `
+            <div style="padding:12px 14px;border-radius:8px;background:rgba(41,121,255,0.06);
+                 border:1px solid rgba(41,121,255,0.2);margin-bottom:16px;">
+                <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px;">
+                    <i class="fas fa-microscope" style="color:var(--brand);font-size:12px;"></i>
+                    <span style="font-size:10px;font-weight:700;color:var(--brand);
+                         letter-spacing:.1em;text-transform:uppercase;">Evidence synthesis</span>
+                    <span style="font-size:10px;color:var(--text-tertiary);margin-left:auto;">
+                        Extracted from ClinVar &amp; PubMed · verify before saving
+                    </span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;">
+                    ${syn.cftr_class ? `
+                    <div style="padding:8px 10px;border-radius:6px;background:rgba(255,255,255,0.03);
+                         border:1px solid rgba(255,255,255,0.08);">
+                        <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px;">CFTR Class</div>
+                        <div style="font-size:15px;font-weight:700;color:var(--text-primary);
+                             font-family:var(--font-mono);">Class ${escapeHTML(syn.cftr_class)}</div>
+                        ${cit.cftr_class ? `<div style="font-size:10px;color:#60a5fa;margin-top:3px;">${escapeHTML(cit.cftr_class)}</div>` : ''}
+                    </div>` : ''}
+                    ${syn.eti_prediction ? `
+                    <div style="padding:8px 10px;border-radius:6px;background:rgba(255,255,255,0.03);
+                         border:1px solid rgba(255,255,255,0.08);">
+                        <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px;">ETI Response</div>
+                        <div style="font-size:13px;font-weight:700;
+                             color:${syn.eti_prediction==='responsive'?'#34d399':'#f87171'};">
+                            ${syn.eti_prediction === 'responsive' ? 'Responsive' : 'Non-responsive'}
+                        </div>
+                        ${cit.eti ? `<div style="font-size:10px;color:#60a5fa;margin-top:3px;">${escapeHTML(cit.eti)}</div>` : ''}
+                    </div>` : ''}
+                    ${syn.determination ? `
+                    <div style="padding:8px 10px;border-radius:6px;background:rgba(255,255,255,0.03);
+                         border:1px solid rgba(255,255,255,0.08);">
+                        <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px;">Determination</div>
+                        <div style="font-size:12px;font-weight:600;color:var(--text-primary);">${escapeHTML(syn.determination)}</div>
+                        ${cit.determination ? `<div style="font-size:10px;color:#60a5fa;margin-top:3px;">${escapeHTML(cit.determination)}</div>` : ''}
+                    </div>` : ''}
+                    ${syn.hasFunctionalStudy ? `
+                    <div style="padding:8px 10px;border-radius:6px;background:rgba(52,211,153,0.04);
+                         border:1px solid rgba(52,211,153,0.15);">
+                        <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px;">Functional data</div>
+                        <div style="font-size:12px;font-weight:600;color:#34d399;">Study cited</div>
+                        ${cit.functional ? `<div style="font-size:10px;color:#60a5fa;margin-top:3px;">${escapeHTML(cit.functional)}</div>` : ''}
+                        <div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">Relevant for ACMG PS3</div>
+                    </div>` : ''}
+                </div>
+            </div>` : '';
         body.innerHTML = `
             <div style="padding:16px 20px;">
-                <div class="lk-sec-title">Classification</div>
-                ${_lkRow('CFTR Class',          F.cftr_class,          F.cftr_class ? (F.cftr_class==='I'?'Nonsense / No protein produced':F.cftr_class==='II'?'Protein misfolding / trafficking defect':F.cftr_class==='III'?'Gating defect':F.cftr_class==='IV'?'Reduced conductance':F.cftr_class==='V'?'Reduced synthesis':F.cftr_class==='VI'?'Reduced stability':'') : null,   F.cftr_class?'high':'none')}
-                ${_lkRow('ETI Prediction',      F.eti_prediction ? (F.eti_prediction==='responsive'?'Responsive':'Non-responsive') : null, null,          F.eti_prediction?'high':'none', F.eti_prediction==='responsive'?'#34d399':null)}
-                ${_lkRow('Final Determination', F.final_determination, result.clinvar?.clinicalSig || null, F.final_determination?'med':'none')}
-                <div class="lk-sec-title">ClinVar</div>
-                ${_lkRow('Significance',  result.clinvar?.clinicalSig  || null, null, result.clinvar?'high':'none')}
-                ${_lkRow('Review status', result.clinvar?.reviewStatus || null, null, result.clinvar?'med':'none')}
-                ${_lkRow('Last evaluated',result.clinvar?.lastEvaluated|| null, null, result.clinvar?'med':'none')}
+                ${synHTML}
+                <div class="lk-sec-title">ClinVar data</div>
+                ${_lkRow('Clinical significance', result.clinvar?.clinicalSig  || null, null, result.clinvar?'high':'none')}
+                ${_lkRow('Review status',         result.clinvar?.reviewStatus || null, null, result.clinvar?'med':'none')}
+                ${_lkRow('Last evaluated',        result.clinvar?.lastEvaluated|| null, null, result.clinvar?'med':'none')}
+                <div class="lk-sec-title">Inferred fields</div>
+                ${_lkRow('CFTR Class',          F.cftr_class,          F.cftr_class ? (F.cftr_class==='I'?'Nonsense / No protein produced':F.cftr_class==='II'?'Protein misfolding / trafficking defect':F.cftr_class==='III'?'Gating defect':F.cftr_class==='IV'?'Reduced conductance':F.cftr_class==='V'?'Reduced synthesis':F.cftr_class==='VI'?'Reduced stability':'') : null, F.cftr_class?'high':'none')}
+                ${_lkRow('ETI Prediction',      F.eti_prediction ? (F.eti_prediction==='responsive'?'Responsive':'Non-responsive') : null, null, F.eti_prediction?'high':'none', F.eti_prediction==='responsive'?'#34d399':null)}
+                ${_lkRow('Final Determination', F.final_determination, null, F.final_determination?'med':'none')}
                 <div class="lk-sec-title">Clinician note</div>
                 <textarea id="lookupClinNote" placeholder="Add a note before saving (optional — recorded in audit trail)…" style="width:100%;box-sizing:border-box;height:60px;resize:none;padding:9px 12px;border-radius:7px;border:1px solid rgba(99,140,210,0.2);background:rgba(99,140,210,0.04);color:var(--text-primary);font-size:12px;font-family:var(--font-body);margin-top:2px;"></textarea>
-            </div>`;
+            </div>`
     } else if (activeTab === 'molecular') {
         body.innerHTML = `
             <div style="padding:16px 20px;">
@@ -19572,6 +19743,16 @@ function lookupRenderModalNotFound(query) {
     const body   = document.getElementById('lookupModalBody');
     const footer = document.getElementById('lookupModalFooter');
 
+    // Find close matches in the local DB using the existing search engine
+    const closeMatches = (() => {
+        if (!query || query.length < 2) return [];
+        const results = searchVariants(query);
+        // Return top 4 that are not an exact match (those would have been found already)
+        return results
+            .filter(v => v.legacy_name.toLowerCase() !== query.toLowerCase())
+            .slice(0, 4);
+    })();
+
     header.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;">
             <div style="display:flex;align-items:center;gap:8px;">
@@ -19582,30 +19763,67 @@ function lookupRenderModalNotFound(query) {
         </div>
         <div style="font-family:var(--font-mono);font-size:22px;font-weight:700;color:var(--text-primary);margin-top:8px;">${escapeHTML(query)}</div>`;
 
+    const closeMatchHTML = closeMatches.length ? `
+        <div style="margin-top:16px;padding:12px 14px;background:rgba(41,121,255,0.05);
+             border:1px solid rgba(41,121,255,0.15);border-radius:9px;">
+            <div style="font-size:10px;font-weight:700;color:var(--brand);text-transform:uppercase;
+                 letter-spacing:.08em;margin-bottom:8px;">
+                <i class="fas fa-search" style="margin-right:5px;"></i>Close matches in your database
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+                ${closeMatches.map(v => `
+                <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;
+                     background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);
+                     cursor:pointer;transition:background .1s;"
+                     onmouseover="this.style.background='rgba(41,121,255,0.08)'"
+                     onmouseout="this.style.background='rgba(255,255,255,0.03)'"
+                     onclick="lookupCloseModal();selectVariant('${escapeAttr(v.legacy_name)}',true);">
+                    <span style="font-family:var(--font-mono);font-size:12px;font-weight:700;
+                          color:var(--text-primary);flex:1;">${escapeHTML(v.legacy_name)}</span>
+                    ${v.cftr_class ? `<span style="font-size:10px;padding:1px 6px;border-radius:3px;
+                        background:rgba(255,255,255,0.06);color:var(--text-secondary);">
+                        Class ${escapeHTML(v.cftr_class)}</span>` : ''}
+                    ${v.eti_prediction === 'responsive' ? `<span style="font-size:10px;color:#34d399;">ETI ✓</span>` : ''}
+                    <i class="fas fa-arrow-right" style="font-size:10px;color:var(--text-tertiary);"></i>
+                </div>`).join('')}
+            </div>
+        </div>` : '';
+
     body.innerHTML = `
-        <div style="padding:24px 20px;text-align:center;">
-            <div style="width:44px;height:44px;border-radius:50%;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.5" stroke="#fbbf24" stroke-width="1.3"/><path d="M10 6.5v4M10 13h.01" stroke="#fbbf24" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <div style="padding:20px;">
+            <div style="text-align:center;margin-bottom:16px;">
+                <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px;">
+                    Not found in ClinVar, CFTR2, or PubMed
+                </div>
+                <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;max-width:380px;margin:0 auto;">
+                    This may be a novel variant, or catalogued under a different name.
+                </div>
             </div>
-            <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px;">Variant not found in any external source</div>
-            <div style="font-size:12px;color:var(--text-secondary);line-height:1.7;max-width:380px;margin:0 auto;">
-                ClinVar, CFTR2, and PubMed returned no results for <span style="font-family:var(--font-mono);color:var(--text-primary);">${escapeHTML(query)}</span>. 
-                This may be a novel variant, a rare mutation, or it may be catalogued under a different name.
-            </div>
-            <div style="margin-top:20px;padding:14px 16px;background:rgba(99,140,210,0.05);border:1px solid rgba(99,140,210,0.12);border-radius:9px;text-align:left;">
-                <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">What you can do</div>
-                <div style="display:flex;flex-direction:column;gap:8px;">
+            ${closeMatchHTML}
+            <div style="margin-top:14px;padding:12px 14px;background:rgba(99,140,210,0.05);
+                 border:1px solid rgba(99,140,210,0.12);border-radius:9px;">
+                <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);
+                     text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Other options</div>
+                <div style="display:flex;flex-direction:column;gap:7px;">
                     <div style="display:flex;align-items:flex-start;gap:10px;">
                         <span style="font-size:12px;color:#2979ff;flex-shrink:0;margin-top:1px;">→</span>
-                        <span style="font-size:12px;color:var(--text-secondary);">Try alternate nomenclature — e.g. protein name <span style="font-family:var(--font-mono);">p.Xxx</span> or legacy name</span>
+                        <span style="font-size:12px;color:var(--text-secondary);">
+                            Try protein notation <span style="font-family:var(--font-mono);">p.Xxx</span>,
+                            cDNA notation <span style="font-family:var(--font-mono);">c.NNN</span>, or legacy name
+                        </span>
                     </div>
                     <div style="display:flex;align-items:flex-start;gap:10px;">
                         <span style="font-size:12px;color:#2979ff;flex-shrink:0;margin-top:1px;">→</span>
-                        <span style="font-size:12px;color:var(--text-secondary);">Search <a href="https://www.lovd.nl/CFTR" target="_blank" style="color:#60a5fa;">LOVD</a> or <a href="https://gnomad.broadinstitute.org" target="_blank" style="color:#60a5fa;">gnomAD</a> manually for rare variants</span>
+                        <span style="font-size:12px;color:var(--text-secondary);">
+                            Search <a href="https://www.lovd.nl/CFTR" target="_blank" style="color:#60a5fa;">LOVD</a>
+                            or <a href="https://gnomad.broadinstitute.org" target="_blank" style="color:#60a5fa;">gnomAD</a>
+                        </span>
                     </div>
                     <div style="display:flex;align-items:flex-start;gap:10px;">
                         <span style="font-size:12px;color:#34d399;flex-shrink:0;margin-top:1px;">→</span>
-                        <span style="font-size:12px;color:var(--text-secondary);">Add as a <strong style="color:var(--text-primary);">novel variant</strong> with manual classification — the form will be pre-filled with your search term</span>
+                        <span style="font-size:12px;color:var(--text-secondary);">
+                            Add as a <strong style="color:var(--text-primary);">novel variant</strong> — form pre-filled with your search term
+                        </span>
                     </div>
                 </div>
             </div>
