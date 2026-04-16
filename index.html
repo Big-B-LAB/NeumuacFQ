@@ -4260,7 +4260,7 @@
                     type="text"
                     id="searchInput"
                     class="search-input"
-                    placeholder="Variant, cDNA, protein, class…" aria-label="Search variant, cDNA, protein or class"
+                    placeholder="Variant, cDNA, protein… or class:III eti:responsive missing:class" aria-label="Search variant, cDNA, protein or use filters like class:III eti:responsive"
                     autocomplete="off"
                 >
                 <button class="search-clear hidden" id="searchClear" onclick="clearSearch()">
@@ -6169,6 +6169,9 @@ async function loadVariants() {
         _restoreFilterState();
         applyFilterChain();
 
+        // Load cross-session search history from Supabase — non-blocking
+        setTimeout(() => loadCrossSessionHistory().catch(() => {}), 2000);
+
         STATE.system.initialized = true;
         STATE.system.initEndTime = new Date();
         
@@ -6319,12 +6322,20 @@ function searchVariants(query) {
         }
     });
 
-    // Fuzzy Levenshtein ≤2 — only when no direct hits
-    if (stripped.length >= 3 && scores.size === 0) {
+    // Fuzzy Levenshtein — runs in parallel, not just as zero-result fallback.
+    // Clinical variant names have systematic typos: 1↔I, 0↔O, del↔del, G→g etc.
+    // Tier 3 (fuzzy) is lower priority than tiers 0-2 so exact matches still win,
+    // but it no longer requires zero results to fire.
+    // Only runs when query ≥ 4 chars to avoid noise on short queries.
+    if (stripped.length >= 4) {
         STATE.searchIndex.lookup.forEach((ids, key) => {
+            // Skip if already matched at better tier
+            if ([...ids].every(id => scores.has(id) && scores.get(id) < 3)) return;
             if (Math.abs(key.length - stripped.length) > 2) return;
             const d = levenshtein(stripped, key);
-            if (d <= 2) ids.forEach(id => record(id, 3));
+            if (d === 1) ids.forEach(id => record(id, 3));        // Tier 3: edit distance 1
+            else if (d === 2 && stripped.length >= 5)              // Tier 3: edit distance 2 (longer queries only)
+                ids.forEach(id => record(id, 3));
         });
     }
 
@@ -6408,11 +6419,53 @@ function logSearch(query, isHit, matchedField, matchedVariantId) {
 async function fetchLocationOnce() {
     const si = STATE.searchIntelligence;
     if (si.locationCache !== null) return si.locationCache;
-    // ipapi.co — free, HTTPS, no key required, works on GitHub Pages
+
+    // Layer 1: browser Geolocation API — GPS/WiFi, accurate to building level.
+    // Much better than IP-based for hospital networks that share a single egress IP.
+    if (navigator.geolocation && window.isSecureContext) {
+        try {
+            const pos = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    timeout: 6000, maximumAge: 3600000, enableHighAccuracy: false
+                });
+            });
+            // Reverse-geocode the coordinates to get city/country via ipapi
+            // (we already have the accurate coordinates — ipapi just adds human labels)
+            const { latitude, longitude } = pos.coords;
+            let city = null, country = null, region = null;
+            try {
+                const geoRes = await fetch(
+                    `https://ipapi.co/${latitude},${longitude}/json/`,
+                    { signal: AbortSignal.timeout(4000) }
+                );
+                if (geoRes.ok) {
+                    const gd = await geoRes.json();
+                    city    = gd.city    || null;
+                    country = gd.country_name || null;
+                    region  = gd.region  || null;
+                }
+            } catch(e) { /* reverse geocode failed — coordinates still valid */ }
+
+            si.locationCache = {
+                country, region, city,
+                latitude:  Math.round(latitude  * 10000) / 10000,
+                longitude: Math.round(longitude * 10000) / 10000,
+                ip_source: 'browser_gps',
+                accuracy:  Math.round(pos.coords.accuracy)
+            };
+            console.log('[NeumuacFQ Geo] GPS location:', si.locationCache.city, si.locationCache.country,
+                        '(±' + si.locationCache.accuracy + 'm)');
+            return si.locationCache;
+        } catch(geoErr) {
+            // User denied or API unavailable — fall through to IP fallback
+            console.info('[NeumuacFQ Geo] Browser geolocation unavailable:', geoErr.message);
+        }
+    }
+
+    // Layer 2: ipapi.co IP geolocation — city-level, works without permission.
+    // Less accurate on hospital networks (all users share one IP) but better than nothing.
     try {
-        const res = await fetch('https://ipapi.co/json/', {
-            signal: AbortSignal.timeout(4000)
-        });
+        const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
         if (!res.ok) throw new Error(`geo HTTP ${res.status}`);
         const d = await res.json();
         if (d && d.city) {
@@ -6424,14 +6477,13 @@ async function fetchLocationOnce() {
                 longitude: d.longitude    || null,
                 ip_source: 'ipapi.co'
             };
-            console.log('[NeumuacFQ Geo] Location resolved:', si.locationCache.city, si.locationCache.country);
+            console.log('[NeumuacFQ Geo] IP location:', si.locationCache.city, si.locationCache.country);
         } else {
-            console.warn('[NeumuacFQ Geo] ipapi.co returned no city:', d);
             si.locationCache = {};
         }
     } catch(e) {
         console.warn('[NeumuacFQ Geo] Location fetch failed:', e.message);
-        si.locationCache = {}; // don't retry this session
+        si.locationCache = {};
     }
     return si.locationCache;
 }
@@ -6580,7 +6632,8 @@ async function persistSearchEvent(query, isHit, matchedField, matchedVariantId) 
                 latitude:          loc.latitude  || null,
                 longitude:         loc.longitude || null,
                 ip_source:         loc.ip_source || null,
-                hospital_name:     hospital
+                hospital_name:     hospital,
+                institution_id:    STATE.searchIntelligence.hospitalObj?.id || null
             })
         });
 
@@ -6606,9 +6659,10 @@ async function persistSearchEvent(query, isHit, matchedField, matchedVariantId) 
                             'Prefer': 'resolution=merge-duplicates,return=representation'
                         },
                         body: JSON.stringify({
-                            query:        normQuery,
-                            last_seen_at: new Date().toISOString(),
-                            top_hospital: hospital || null
+                            query:          normQuery,
+                            last_seen_at:   new Date().toISOString(),
+                            top_hospital:   hospital || null,
+                            institution_id: STATE.searchIntelligence.hospitalObj?.id || null
                         })
                     }
                 );
@@ -8010,11 +8064,120 @@ function updateFilterChips() {
 
 // ========== VIEW & FILTERING ==========
 
+// ================================================================
+// STRUCTURED FILTER SYNTAX PARSER
+// Supports tokens like: class:III  eti:responsive  missing:class
+//   searched:>5  validated:0  unvalidated  recent  complete
+// Anything not matching a token is treated as a variant name query.
+// Examples:
+//   "class:II eti:responsive"  → Class II + ETI responsive
+//   "missing:class searched:>10"  → unclassified + high demand
+//   "G551D"  → normal name search (no tokens)
+// ================================================================
+function parseStructuredQuery(raw) {
+    if (!raw || !raw.trim()) return { nameQuery: '', filters: {} };
+
+    const TOKEN = /\b(class|eti|missing|searched|validated|unvalidated|recent|complete|gap):([\w><!=]+)/gi;
+    const filters  = {};
+    const nameQuery = raw.replace(TOKEN, (_, key, val) => {
+        filters[key.toLowerCase()] = val.toLowerCase();
+        return '';
+    }).replace(/\s+/g, ' ').trim();
+
+    // Boolean shorthand tokens (no colon)
+    if (/\bunvalidated\b/i.test(raw)) { filters.validated = '0'; }
+    if (/\brecent\b/i.test(raw))      { filters.recent    = 'true'; }
+    if (/\bcomplete\b/i.test(raw))    { filters.complete  = 'true'; }
+
+    return { nameQuery, filters };
+}
+
+function applyStructuredFilters(variants, filters) {
+    let result = variants;
+
+    if (filters.class) {
+        const cls = filters.class.toUpperCase();
+        result = result.filter(v => v.cftr_class === cls);
+    }
+
+    if (filters.eti) {
+        const eti = filters.eti.toLowerCase();
+        if (eti === 'responsive' || eti === 'yes')
+            result = result.filter(v => v.eti_prediction === 'responsive');
+        else if (eti === 'non_responsive' || eti === 'no' || eti === 'nonresponsive')
+            result = result.filter(v => v.eti_prediction === 'non_responsive');
+        else if (eti === 'unknown')
+            result = result.filter(v => !v.eti_prediction || v.eti_prediction === 'unknown');
+    }
+
+    if (filters.missing) {
+        const field = filters.missing.toLowerCase();
+        if (field === 'class')      result = result.filter(v => !v.cftr_class);
+        else if (field === 'eti')   result = result.filter(v => !v.eti_prediction || v.eti_prediction === 'unknown');
+        else if (field === 'hgvs')  result = result.filter(v => !v.protein_name || !v.cdna_name);
+        else if (field === 'evidence') result = result.filter(v => !(v.evidence_links||[]).length);
+        else if (field === 'any')   result = result.filter(hasMissingData);
+    }
+
+    if (filters.searched) {
+        const val = filters.searched;
+        const n   = parseInt(val.replace(/[><!=]/g,''));
+        if (!isNaN(n)) {
+            if (val.startsWith('>'))      result = result.filter(v => (v.search_hit_count||0) > n);
+            else if (val.startsWith('>='))result = result.filter(v => (v.search_hit_count||0) >= n);
+            else if (val.startsWith('<')) result = result.filter(v => (v.search_hit_count||0) < n);
+            else                          result = result.filter(v => (v.search_hit_count||0) >= n);
+        }
+    }
+
+    if (filters.validated !== undefined) {
+        const n = parseInt(filters.validated);
+        if (!isNaN(n)) {
+            if (n === 0) result = result.filter(v => !(v.validation_count||0));
+            else         result = result.filter(v => (v.validation_count||0) >= n);
+        }
+    }
+
+    if (filters.recent === 'true') {
+        const cutoff = Date.now() - 30 * 86400000;
+        result = result.filter(v => v.last_searched_at && new Date(v.last_searched_at) > cutoff);
+    }
+
+    if (filters.complete === 'true') {
+        result = result.filter(v => v.cftr_class && v.eti_prediction && v.eti_prediction !== 'unknown'
+                                    && v.protein_name && v.cdna_name);
+    }
+
+    if (filters.gap) {
+        const lvl = filters.gap.toUpperCase();
+        result = result.filter(v => calculateGapScore(v).gapLevel === lvl);
+    }
+
+    return result;
+}
+
 function applyFilterChain() {
     let filtered = [...STATE.variants];
 
     if (STATE.view.searchQuery.length >= CONFIG.UI.MIN_SEARCH_CHARS) {
-        filtered = searchVariants(STATE.view.searchQuery);
+        // Parse structured tokens (class:III eti:responsive etc.) out of the query
+        const { nameQuery, filters } = parseStructuredQuery(STATE.view.searchQuery);
+        const hasStructured = Object.keys(filters).length > 0;
+
+        // Run name search on the remainder (may be empty string = show all)
+        if (nameQuery.length >= CONFIG.UI.MIN_SEARCH_CHARS) {
+            filtered = searchVariants(nameQuery);
+        }
+        // Apply structured filters on top
+        if (hasStructured) {
+            filtered = applyStructuredFilters(filtered, filters);
+            // Show structured filter indicator in search result bar
+            STATE.view._structuredFilters = filters;
+        } else {
+            STATE.view._structuredFilters = null;
+        }
+    } else {
+        STATE.view._structuredFilters = null;
     }
 
     switch (STATE.view.dataViewMode) {
@@ -17792,35 +17955,149 @@ function saveToSearchHistory(query, variantId, variantName) {
     deduped.unshift(entry);
     if (deduped.length > MAX_HISTORY) deduped.length = MAX_HISTORY;
     try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(deduped)); } catch {}
+
+    // Persist to Supabase so history survives page reloads and is shared across
+    // devices for the same institution. Fire-and-forget — never blocks UI.
+    const institutionId = STATE.searchIntelligence.hospitalObj?.id;
+    if (institutionId && variantId) {
+        fetch(`${CONFIG.SUPABASE.URL}/rest/v1/search_history_log`, {
+            method: 'POST',
+            headers: {
+                'apikey': CONFIG.SUPABASE.KEY,
+                'Authorization': `Bearer ${CONFIG.SUPABASE.KEY}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates,return=minimal',
+                'on-conflict': 'institution_id,variant_id'
+            },
+            body: JSON.stringify({
+                institution_id: institutionId,
+                variant_id:     variantId,
+                variant_name:   variantName,
+                query,
+                last_searched:  new Date().toISOString(),
+                search_count:   1
+            })
+        }).catch(() => {}); // silent — history persistence never blocks clinical work
+    }
+}
+
+// Load cross-session history from Supabase on init (supplements localStorage)
+async function loadCrossSessionHistory() {
+    const institutionId = STATE.searchIntelligence.hospitalObj?.id;
+    if (!institutionId) return;
+    try {
+        const res = await fetch(
+            `${CONFIG.SUPABASE.URL}/rest/v1/search_history_log?institution_id=eq.${institutionId}&order=last_searched.desc&limit=50`,
+            { headers: { 'apikey': CONFIG.SUPABASE.KEY, 'Authorization': `Bearer ${CONFIG.SUPABASE.KEY}` } }
+        );
+        if (!res.ok) return;
+        const rows = await res.json();
+        if (!rows.length) return;
+
+        // Merge with localStorage history — DB entries win on conflict
+        const local   = getSearchHistory();
+        const dbIds   = new Set(rows.map(r => r.variant_id));
+        const merged  = [
+            ...rows.map(r => ({
+                query:       r.variant_name || r.query,
+                variantId:   r.variant_id,
+                variantName: r.variant_name,
+                ts:          new Date(r.last_searched).getTime(),
+                source:      'db'
+            })),
+            ...local.filter(h => !dbIds.has(h.variantId))
+        ].slice(0, MAX_HISTORY);
+
+        try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(merged)); } catch {}
+        console.log('[NeumuacFQ] Cross-session history loaded:', rows.length, 'entries');
+    } catch(e) { /* non-fatal */ }
+}
+
+function _sdRow(name, variantId, icon, iconColor, meta, metaColor) {
+    // Build a search-dropdown row — pure string, no template literals, no quote conflicts
+    const v    = STATE.variantsById.get(variantId);
+    const cls  = v ? ' &middot; Class ' + escapeHTML(v.cftr_class || '?') : '';
+    const safe = escapeAttr(name);
+    return '<div class="sd-item" onclick="selectVariant(\'' + safe + '\',true);'
+         + 'document.getElementById(\'searchDropdown\').classList.add(\'hidden\');">'
+         + '<div style="display:flex;align-items:center;gap:8px;flex:1;">'
+         + '<i class="fas ' + icon + '" style="font-size:10px;color:' + iconColor + ';flex-shrink:0;"></i>'
+         + '<span style="font-size:12px;font-weight:600;color:var(--text-primary);font-family:var(--font-mono);">'
+         + escapeHTML(name) + '</span>'
+         + '<span style="font-size:10px;color:var(--text-tertiary);">' + cls + '</span>'
+         + '<span style="margin-left:auto;font-size:10px;color:' + metaColor + ';">' + escapeHTML(String(meta)) + '</span>'
+         + '</div></div>';
 }
 
 function renderSearchHistoryDropdown() {
     const dd = document.getElementById('searchDropdown');
     if (!dd) return;
-    const history = getSearchHistory();
-    if (!history.length) return;
 
-    const recentEntries = history.slice(0, 8);
-    dd.innerHTML = `
-        <div style="padding:6px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
-            <span style="font-size:10px;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">Recent searches</span>
-            <button onclick="clearSearchHistory()" style="font-size:10px;color:var(--text-tertiary);background:none;border:none;cursor:pointer;">Clear</button>
-        </div>
-        ${recentEntries.map(h => {
-            const v = STATE.variantsById.get(h.variantId);
-            const name = h.variantName || h.query;
-            const timeAgo = formatTimeAgo(h.ts);
-            return `<div class="sd-item" onclick="selectVariant('${escapeAttr(name)}', true);document.getElementById('searchDropdown').classList.add('hidden');">
-                <div style="display:flex;align-items:center;gap:8px;flex:1;">
-                    <i class="fas fa-history" style="font-size:10px;color:var(--text-tertiary);flex-shrink:0;"></i>
-                    <span style="font-size:12px;font-weight:600;color:var(--text-primary);font-family:var(--font-mono);">${escapeHTML(name)}</span>
-                    ${v ? `<span style="font-size:10px;color:var(--text-tertiary);">Class ${escapeHTML(v.cftr_class||'?')}</span>` : ''}
-                    <span style="margin-left:auto;font-size:10px;color:var(--text-tertiary);">${timeAgo}</span>
-                </div>
-            </div>`;
-        }).join('')}`;
+    const history       = getSearchHistory();
+    const institutionFeed = _getInstitutionWeekFeed();
+
+    if (!history.length && !institutionFeed.length) return;
+
+    const recentEntries = history.slice(0, 6);
+    let html = '';
+
+    // ── Your recent ──────────────────────────────────────────────
+    if (recentEntries.length) {
+        html += '<div style="padding:5px 12px 4px;display:flex;align-items:center;'
+             + 'justify-content:space-between;border-bottom:1px solid var(--border);">'
+             + '<span style="font-size:10px;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">Your recent</span>'
+             + '<button onclick="clearSearchHistory()" style="font-size:10px;color:var(--text-tertiary);'
+             + 'background:none;border:none;cursor:pointer;font-family:var(--font-body);">Clear</button>'
+             + '</div>';
+        recentEntries.forEach(h => {
+            html += _sdRow(h.variantName || h.query, h.variantId, 'fa-history',
+                           'var(--text-tertiary)', formatTimeAgo(h.ts), 'var(--text-tertiary)');
+        });
+    }
+
+    // ── Institution this week ────────────────────────────────────
+    if (institutionFeed.length) {
+        const hosp = escapeHTML(STATE.searchIntelligence.hospital || 'Institution');
+        const sep  = recentEntries.length ? 'border-top:1px solid var(--border);margin-top:2px;' : '';
+        html += '<div style="padding:5px 12px 4px;display:flex;align-items:center;gap:6px;'
+             + 'border-bottom:1px solid var(--border);' + sep + '">'
+             + '<i class="fas fa-hospital" style="font-size:9px;color:#60a5fa;"></i>'
+             + '<span style="font-size:10px;color:#60a5fa;letter-spacing:.06em;text-transform:uppercase;">'
+             + hosp + ' \u2014 this week</span>'
+             + '</div>';
+        institutionFeed.forEach(item => {
+            html += _sdRow(item.name, item.variantId, 'fa-users', '#60a5fa', item.count + '\u00d7', '#60a5fa');
+        });
+    }
+
+    // ── Filter syntax hint ───────────────────────────────────────
+    html += '<div style="padding:5px 12px 6px;border-top:1px solid var(--border);margin-top:2px;">'
+         + '<span style="font-size:10px;color:var(--text-tertiary);">'
+         + '<i class="fas fa-filter" style="margin-right:4px;"></i>'
+         + 'Filters: '
+         + '<span style="font-family:var(--font-mono);color:var(--text-secondary);">class:III</span> &middot; '
+         + '<span style="font-family:var(--font-mono);color:var(--text-secondary);">eti:responsive</span> &middot; '
+         + '<span style="font-family:var(--font-mono);color:var(--text-secondary);">missing:class</span> &middot; '
+         + '<span style="font-family:var(--font-mono);color:var(--text-secondary);">searched:&gt;5</span>'
+         + '</span></div>';
+
+    dd.innerHTML = html;
     dd.classList.remove('hidden');
 }
+
+function _getInstitutionWeekFeed() {
+    const cutoff  = Date.now() - 7 * 86400000;
+    const history = getSearchHistory();
+    const recent  = history.filter(h => h.ts > cutoff && h.source === 'db');
+    const counts  = {};
+    recent.forEach(h => {
+        if (!counts[h.variantId])
+            counts[h.variantId] = { name: h.variantName || h.query, variantId: h.variantId, count: 0 };
+        counts[h.variantId].count++;
+    });
+    return Object.values(counts).sort((a,b) => b.count - a.count).slice(0, 5);
+}
+
 
 function formatTimeAgo(ts) {
     const diff = Date.now() - ts;
