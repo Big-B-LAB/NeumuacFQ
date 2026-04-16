@@ -4498,26 +4498,42 @@
         <div class="main-inner">
             <!-- Empty state -->
             <div class="detail-empty" id="detailEmpty">
-                <div class="empty-graphic">
-                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <text x="20" y="27" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="26" font-weight="700" fill="var(--border-strong)">Δ</text>
-                        <path d="M8 32 Q11.5 28.5 15 32 Q18.5 35.5 22 32 Q25.5 28.5 29 32 Q32.5 35.5 32 32" stroke="var(--border-strong)" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.6"/>
-                    </svg>
+                <div id="detailEmptyMissPanel" style="display:none;max-width:380px;margin:0 auto 24px;"></div>
+                <div id="detailEmptyTitle"     style="display:none"></div>
+                <div id="detailEmptySub"       style="display:none"></div>
+                <div id="detailEmptyQuickLinks"style="display:none"></div>
+
+                <div id="homeDashboard" style="width:100%;max-width:860px;padding:0 8px;text-align:left;">
+
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;" id="homeKpiStrip"></div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+                            <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface-alt);">
+                                <i class="fas fa-star" style="font-size:12px;color:var(--brand);"></i>
+                                <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);">Curation priority</span>
+                                <span style="margin-left:auto;font-size:10px;color:var(--text-tertiary);">click to open</span>
+                            </div>
+                            <div id="homePriorityList" style="padding:4px 0;"></div>
+                        </div>
+                        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+                            <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface-alt);">
+                                <i class="fas fa-sun" style="font-size:12px;color:#f59e0b;"></i>
+                                <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);">Helios inbox</span>
+                                <span id="homeHeliosBadge" style="margin-left:auto;font-size:10px;color:#f59e0b;font-family:var(--font-mono);font-weight:700;"></span>
+                            </div>
+                            <div id="homeHeliosList" style="padding:4px 0;"></div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+                        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface-alt);">
+                            <i class="fas fa-history" style="font-size:12px;color:var(--text-tertiary);"></i>
+                            <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);">Your recent</span>
+                        </div>
+                        <div id="homeRecentList" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;min-height:44px;"></div>
+                    </div>
                 </div>
-                <h2 class="empty-title" id="detailEmptyTitle">Select a variant</h2>
-                <p class="empty-sub" id="detailEmptySub">
-                    Choose a CFTR variant from the explorer to view comprehensive clinical data,
-                    therapeutic predictions, and evidence chain.
-                </p>
-                <div class="quick-links" id="detailEmptyQuickLinks">
-                    <button class="quick-link" onclick="quickSearch('G542X')">G542X</button>
-                    <button class="quick-link" onclick="quickSearch('F508del')">F508del</button>
-                    <button class="quick-link" onclick="quickSearch('W1282X')">W1282X</button>
-                    <button class="quick-link" onclick="quickSearch('G551D')">G551D</button>
-                    <button class="quick-link" onclick="quickSearch('N1303K')">N1303K</button>
-                </div>
-                <!-- Not-found external DB panel (shown when search has no results) -->
-                <div id="detailEmptyMissPanel" style="display:none;max-width:380px;margin:0 auto;"></div>
             </div>
 
             <!-- Variant detail (populated by JS) -->
@@ -6403,6 +6419,9 @@ async function loadVariants() {
 
         // Load cross-session search history from Supabase — non-blocking
         setTimeout(() => loadCrossSessionHistory().catch(() => {}), 2000);
+
+        // Render live home dashboard in the empty state panel
+        setTimeout(() => renderHomeDashboard(), 350);
 
         STATE.system.initialized = true;
         STATE.system.initEndTime = new Date();
@@ -8646,6 +8665,120 @@ function toggleSidebar() {
 
 // ========== RENDER — VARIANT LIST ==========
 
+// ================================================================
+// HOME DASHBOARD — replaces the empty state
+// KPI cards + priority queue + Helios inbox + recent searches
+// Called on init and whenever the empty state becomes visible
+// ================================================================
+function renderHomeDashboard() {
+    var kpiEl = document.getElementById('homeKpiStrip');
+    if (kpiEl) {
+        var critCount    = STATE.variants.filter(function(v){ return calculateGapScore(v).gapLevel === 'CRITICAL'; }).length;
+        var etiCount     = STATE.variants.filter(function(v){ return v.eti_prediction === 'responsive'; }).length;
+        var missingCount = STATE.variants.filter(hasMissingData).length;
+        var completeCount= STATE.variants.filter(function(v){ return !hasMissingData(v) && v.cftr_class && v.eti_prediction && v.eti_prediction !== 'unknown'; }).length;
+        var kpis = [
+            { val: critCount,     lbl: 'Critical gaps',  col: 'var(--error)'     },
+            { val: etiCount,      lbl: 'ETI responsive', col: 'var(--class-iii)' },
+            { val: missingCount,  lbl: 'Missing data',   col: '#f59e0b'          },
+            { val: completeCount, lbl: 'Complete',        col: 'var(--brand)'    },
+        ];
+        kpiEl.innerHTML = kpis.map(function(k) {
+            return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:default;">'
+                 + '<div style="font-size:24px;font-weight:800;font-family:var(--font-mono);color:' + k.col + ';line-height:1;margin-bottom:5px;">' + k.val.toLocaleString() + '</div>'
+                 + '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-tertiary);">' + k.lbl + '</div>'
+                 + '</div>';
+        }).join('');
+    }
+
+    var pqEl = document.getElementById('homePriorityList');
+    if (pqEl) {
+        var scored = STATE.variants.filter(function(v){ return !!v.legacy_name; }).map(function(v) {
+            var gap      = calculateGapScore(v);
+            var hits     = v.search_hit_count || 0;
+            var lastDays = v.last_searched_at ? (Date.now() - new Date(v.last_searched_at)) / 86400000 : 999;
+            var demandW  = hits >= 30 ? 2.0 : hits >= 10 ? 1.5 : hits >= 3 ? 1.2 : 1.0;
+            var recencyW = lastDays <= 7 ? 1.4 : lastDays <= 30 ? 1.2 : 1.0;
+            var heliosB  = (HELIOS.pendingItems||[]).some(function(i){ return i.variant_id === v.id; }) ? 1.2 : 1.0;
+            var valPen   = (!(v.validation_count||0) && hits >= 3) ? 15 : 0;
+            var composite = Math.min(100, Math.round(gap.score * demandW * recencyW * heliosB + valPen));
+            return { v: v, composite: composite, gap: gap, hits: hits, lastDays: lastDays };
+        }).filter(function(x){ return x.composite >= 15; })
+          .sort(function(a,b){ return b.composite - a.composite; })
+          .slice(0, 6);
+
+        if (!scored.length) {
+            pqEl.innerHTML = '<div style="padding:16px 14px;font-size:12px;color:var(--text-tertiary);text-align:center;"><i class="fas fa-check-circle" style="color:var(--class-iii);margin-right:6px;"></i>All variants in good shape</div>';
+        } else {
+            pqEl.innerHTML = scored.map(function(x) {
+                var col  = x.gap.score >= 75 ? 'var(--error)' : x.gap.score >= 55 ? '#f59e0b' : x.gap.score >= 35 ? '#fbbf24' : 'var(--brand)';
+                var miss = x.gap.missing.slice(0,2).map(function(m){
+                    return '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(248,113,113,0.1);color:var(--error);font-family:var(--font-mono);margin-right:3px;">' + m.replace(/_/g,' ') + '</span>';
+                }).join('');
+                var rec = x.lastDays <= 1 ? 'today' : x.lastDays <= 7 ? Math.round(x.lastDays) + 'd ago' : '';
+                return '<div onclick="selectVariant(\'' + escapeAttr(x.v.legacy_name) + '\',false)"'
+                     + ' style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;"'
+                     + ' onmouseover="this.style.background=\'var(--surface-alt)\'" onmouseout="this.style.background=\'\'">'
+                     + '<div style="width:30px;height:30px;border-radius:7px;background:' + col + '18;border:1px solid ' + col + '40;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
+                     + '<span style="font-size:11px;font-weight:800;font-family:var(--font-mono);color:' + col + ';">' + x.composite + '</span></div>'
+                     + '<div style="flex:1;min-width:0;">'
+                     + '<div style="font-size:12px;font-weight:700;font-family:var(--font-mono);color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHTML(x.v.legacy_name) + '</div>'
+                     + '<div style="margin-top:2px;">' + miss + '</div></div>'
+                     + (x.hits > 0 ? '<div style="text-align:right;font-size:10px;color:var(--text-tertiary);flex-shrink:0;white-space:nowrap;">' + x.hits + ' searches'
+                        + (rec ? '<br><span style="color:var(--brand);font-size:9px;">' + rec + '</span>' : '') + '</div>' : '')
+                     + '</div>';
+            }).join('');
+        }
+    }
+
+    var helEl    = document.getElementById('homeHeliosList');
+    var helBadge = document.getElementById('homeHeliosBadge');
+    if (helEl) {
+        var pending = (HELIOS.pendingItems || []).filter(function(i){ return i.status === 'pending'; }).slice(0, 5);
+        if (helBadge) helBadge.textContent = pending.length ? pending.length + ' pending' : '';
+        if (!pending.length) {
+            helEl.innerHTML = '<div style="padding:16px 14px;font-size:12px;color:var(--text-tertiary);text-align:center;"><i class="fas fa-inbox" style="margin-right:6px;"></i>Helios inbox is clear</div>';
+        } else {
+            helEl.innerHTML = pending.map(function(item) {
+                var conf = item.bot_confidence || 0;
+                var cCol = conf >= 80 ? 'var(--class-iii)' : conf >= 60 ? '#f59e0b' : 'var(--text-tertiary)';
+                return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);">'
+                     + '<div style="font-size:11px;font-weight:600;color:var(--text-primary);margin-bottom:4px;line-height:1.4;">' + escapeHTML((item.bot_summary||'').slice(0,90)) + '</div>'
+                     + '<div style="display:flex;align-items:center;gap:6px;">'
+                     + '<div style="flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden;"><div style="height:100%;width:' + conf + '%;background:' + cCol + ';border-radius:2px;"></div></div>'
+                     + '<span style="font-size:9px;color:' + cCol + ';font-family:var(--font-mono);font-weight:700;">' + conf + '%</span></div>'
+                     + '<div style="display:flex;gap:5px;margin-top:6px;">'
+                     + '<button onclick="heliosApprove(' + item.id + ')" style="padding:3px 8px;border-radius:4px;border:1px solid rgba(52,211,153,.3);background:rgba(52,211,153,.08);color:var(--class-iii);font-size:9px;font-weight:700;cursor:pointer;font-family:var(--font-body);">Approve</button>'
+                     + '<button onclick="heliosReject(' + item.id + ')" style="padding:3px 8px;border-radius:4px;border:1px solid rgba(248,113,113,.3);background:rgba(248,113,113,.08);color:var(--error);font-size:9px;font-weight:700;cursor:pointer;font-family:var(--font-body);">Reject</button>'
+                     + '<button onclick="heliosDefer(' + item.id + ')" style="padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text-tertiary);font-size:9px;cursor:pointer;font-family:var(--font-body);">Defer</button>'
+                     + '</div></div>';
+            }).join('');
+        }
+    }
+
+    var recEl = document.getElementById('homeRecentList');
+    if (recEl) {
+        var history = (typeof getSearchHistory === 'function') ? getSearchHistory().slice(0, 12) : [];
+        if (!history.length) {
+            recEl.innerHTML = '<span style="font-size:11px;color:var(--text-tertiary);">No searches yet this session</span>';
+        } else {
+            recEl.innerHTML = history.map(function(h) {
+                var name = h.variantName || h.query;
+                var v    = STATE.variantsById.get(h.variantId);
+                var cls  = v && v.cftr_class ? v.cftr_class : '';
+                var age  = (typeof formatTimeAgo === 'function') ? formatTimeAgo(h.ts) : '';
+                return '<button onclick="selectVariant(\'' + escapeAttr(name) + '\',false)"'
+                     + ' style="display:flex;align-items:center;gap:5px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-primary);cursor:pointer;font-family:inherit;transition:border-color .15s;"'
+                     + ' onmouseover="this.style.borderColor=\'var(--brand)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
+                     + '<span style="font-size:11px;font-weight:700;font-family:var(--font-mono);">' + escapeHTML(name) + '</span>'
+                     + (cls ? '<span style="font-size:9px;color:var(--text-tertiary);">' + escapeHTML(cls) + '</span>' : '')
+                     + (age ? '<span style="font-size:9px;color:var(--text-tertiary);">' + age + '</span>' : '')
+                     + '</button>';
+            }).join('');
+        }
+    }
+}
+
 function renderVariantList() {
     const container = document.getElementById('variantList');
     if (!container) return;
@@ -8816,6 +8949,7 @@ function renderVariantList() {
             <div class="collapsed-icon-row ${cls}" style="background:${clsBg[cls]||clsBg.cx};color:${clsColor[cls]||clsColor.cx};font-weight:700;font-size:11px;">
                 ${v.cftr_class || '?'}
             </div>
+            ${(function(){var _g=calculateGapScore(v);var _w=Math.max(4,_g.score);var _c=_g.score>=75?'var(--error)':_g.score>=55?'#f59e0b':_g.score>=35?'#fbbf24':_g.score>=15?'var(--brand)':'var(--class-iii)';return '<div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--border)"><div style="height:100%;width:'+_w+'%;background:'+_c+';border-radius:0 1px 1px 0"></div></div>';})()}
         </div>`;
     }).join('');
 
@@ -10049,6 +10183,7 @@ async function confirmDeleteVariant() {
             STATE.view.selectedVariant = null;
             document.getElementById('variantDetail').classList.add('hidden');
             document.getElementById('detailEmpty').classList.remove('hidden');
+            setTimeout(() => renderHomeDashboard(), 60);
         }
         // Write to audit log
         writeAuditLog({
@@ -11636,14 +11771,9 @@ function helixShowDetailMissState(query) {
 
 // Reset detail empty panel to default state (call on clearSearch)
 function helixResetDetailEmpty() {
-    const title = document.getElementById('detailEmptyTitle');
-    const sub   = document.getElementById('detailEmptySub');
-    const ql    = document.getElementById('detailEmptyQuickLinks');
     const panel = document.getElementById('detailEmptyMissPanel');
-    if (title) title.textContent = 'Select a variant';
-    if (sub)   sub.textContent   = 'Choose a CFTR variant from the explorer to view comprehensive clinical data, therapeutic predictions, and evidence chain.';
-    if (ql)    ql.style.display  = '';
     if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+    if (STATE.system.initialized) setTimeout(() => renderHomeDashboard(), 60);
 }
 
 // ========== RESEARCH GAP ENGINE ==========
@@ -17556,7 +17686,7 @@ Object.assign(window, {
     saveMissNote, highlightMatch,
     renderVelocityHeatmap, renderCoSearchClusters,
     renderSearchHistoryDropdown, clearSearchHistory,
-    saveToSearchHistory, getSearchHistory,
+    saveToSearchHistory, getSearchHistory, renderHomeDashboard,
     // Phase 3-5 additions
     showDisputeModal, closeDisputeModal, submitDispute,
     exportCohort, exportIRB, exportFilteredCohort, exportIRBPackage,
