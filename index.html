@@ -6215,6 +6215,28 @@ function updateConnectionStatus(status) {
 
 // ---- Audit log writer — fire and forget, never blocks UI ----
 async function writeAuditLog(entry) {
+    // helios_audit_log.action CHECK constraint only allows:
+    // 'approved' | 'rejected' | 'deferred' | 'note_added' | 'bot_created' | 'superseded'
+    //
+    // Our app uses richer action names internally. Map them here so DB writes
+    // never fail a constraint violation — extra detail goes in the `note` field.
+    const ACTION_MAP = {
+        'updated':        'note_added',   // field edit → note_added
+        'deleted':        'rejected',     // deletion = rejection of the record
+        'undo':           'note_added',   // undo of a field edit
+        'import_add':     'bot_created',  // new variant from import = bot_created
+        'import_update':  'note_added',   // update from import
+        'import_lookup':  'bot_created',  // new variant from external lookup
+        'validated':      'approved',     // clinician validation = approval
+    };
+    const dbAction = ACTION_MAP[entry.action] || entry.action;
+
+    // Preserve the original action name in the note so it's not lost
+    const originalNote = entry.note || null;
+    const actionNote   = entry.action !== dbAction
+        ? `[${entry.action}]${originalNote ? ' — ' + originalNote : ''}`
+        : originalNote;
+
     try {
         await fetch(`${CONFIG.SUPABASE.URL}/rest/v1/helios_audit_log`, {
             method: 'POST',
@@ -6225,13 +6247,13 @@ async function writeAuditLog(entry) {
                 'Prefer': 'return=minimal'
             },
             body: JSON.stringify({
-                action:          entry.action,
+                action:          dbAction,
                 clinician_name:  entry.clinician_name || 'Unknown',
                 clinician_role:  entry.clinician_role || null,
                 variant_id:      entry.variant_id     || null,
                 variant_name:    entry.variant_name   || null,
                 item_type:       entry.item_type      || null,
-                note:            entry.note           || null,
+                note:            actionNote,
                 db_change_field: entry.db_change_field|| null,
                 db_change_old:   entry.db_change_old  || null,
                 db_change_new:   entry.db_change_new  || null,
