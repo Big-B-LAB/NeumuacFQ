@@ -22728,7 +22728,7 @@ function lookupRetryAlternate(query) {
         LOOKUP_JOB_STATE.activeQuery  = alt.trim();
         LOOKUP_JOB_STATE.status       = 'running';
         LOOKUP_JOB_STATE.result       = null;
-        lookupShowTray(alt.trim(), 'running');
+        lookupShowTray(alt.trim(), 'running');  
         _lookupExecute(alt.trim()).then(result => {
             LOOKUP_JOB_STATE.status = result.found ? 'done' : 'notfound';
             LOOKUP_JOB_STATE.result = result;
