@@ -6495,7 +6495,13 @@ const STATE = {
         classFilter: 'all',
         currentPage: 1,
         searchQuery: '',
-        sortAsc: true
+        sortAsc: true,
+        _didYouMean:         null,  // { original, suggestion } — set on near-miss, cleared on new search
+        _structuredFilters:  null,
+        _activeFilterSummary:[],
+        _crossClassCount:    0,
+        _crossClassResults:  [],
+        _lastScores:         null,
     },
     
     ui: {
@@ -6887,6 +6893,17 @@ function buildSearchIndex() {
             const cdnaStripped = v.cdna_name.replace(/^c\./, '').toLowerCase();
             addKey(cdnaStripped, v.id);
         }
+        // FIX #4 — Index clinical classification terms clinicians type naturally:
+        //   "CF-causing", "VUS", "Non CF-causing", "exceptional", "atypical"
+        // These are never part of the variant name but are common search intentions.
+        if (v.final_determination) {
+            // Index full string AND each word individually
+            addKey(v.final_determination, v.id);
+            v.final_determination.split(/[\s-]+/).forEach(w => { if (w.length >= 2) addKey(w, v.id); });
+        }
+        if (v.class_subtype) {
+            addKey(v.class_subtype, v.id); // "exceptional", "atypical", "presumed" etc.
+        }
     });
 
     STATE.searchIndex.lookup = lookup;
@@ -6943,18 +6960,30 @@ function searchVariants(query) {
 
     // Fuzzy Levenshtein — runs in parallel, not just as zero-result fallback.
     // Clinical variant names have systematic typos: 1↔I, 0↔O, del↔del, G→g etc.
-    // Tier 3 (fuzzy) is lower priority than tiers 0-2 so exact matches still win,
-    // but it no longer requires zero results to fire.
+    // Tier 3 (fuzzy) is lower priority than tiers 0-2 so exact matches still win.
     // Only runs when query ≥ 4 chars to avoid noise on short queries.
+    //
+    // FIX #6a — The original skip condition spread Sets to Arrays on every iteration:
+    //   [...ids].every(...)  →  O(k) allocation per key, k=ids.size, ~3000 keys total
+    // Replaced with a direct iteration that short-circuits as soon as any ID lacks
+    // a better-tier score — avoiding all allocations.
+    //
+    // FIX #6b — The original skip logic was inverted:
+    //   "skip if ALL ids already have score < 3"
+    // This wrongly skipped a key if even ONE of its IDs had a good score, potentially
+    // missing other IDs mapped to the same key that still need fuzzy scoring.
+    // Correct logic: run fuzzy on a key if ANY of its IDs doesn't yet have score < 3.
     if (stripped.length >= 4) {
         STATE.searchIndex.lookup.forEach((ids, key) => {
-            // Skip if already matched at better tier
-            if ([...ids].every(id => scores.has(id) && scores.get(id) < 3)) return;
             if (Math.abs(key.length - stripped.length) > 2) return;
+            // Skip only if every ID already has a better-tier score
+            // FIX #6b: check with ids.forEach (no array allocation) and early-exit flag
+            let allBetter = true;
+            ids.forEach(id => { if (!scores.has(id) || scores.get(id) >= 3) allBetter = false; });
+            if (allBetter) return; // every variant in this key already matched at tier 0-2
             const d = levenshtein(stripped, key);
-            if (d === 1) ids.forEach(id => record(id, 3));        // Tier 3: edit distance 1
-            else if (d === 2 && stripped.length >= 5)              // Tier 3: edit distance 2 (longer queries only)
-                ids.forEach(id => record(id, 3));
+            if (d === 1) ids.forEach(id => record(id, 3));
+            else if (d === 2 && stripped.length >= 5) ids.forEach(id => record(id, 3));
         });
     }
 
@@ -6998,8 +7027,11 @@ function logSearch(query, isHit, matchedField, matchedVariantId) {
     const normQ = normaliseQuery(query);
 
     // Recent searches — session, deduped, max 20
+    // FIX #8 — store both normQ (for dedup) and the original query (for display).
+    // Previously history showed the normalised form ("f508del") even when the
+    // clinician typed "Phe508del" — creating a subtle trust issue.
     si.recentSearches = si.recentSearches.filter(r => r.query !== normQ);
-    si.recentSearches.unshift({ query: normQ, isHit, matchedField, ts });
+    si.recentSearches.unshift({ query: normQ, original: query, isHit, matchedField, ts });
     if (si.recentSearches.length > 20) si.recentSearches.pop();
 
     // Global hit / miss counters — use normalised query as key
@@ -7263,12 +7295,14 @@ async function persistSearchEvent(query, isHit, matchedField, matchedVariantId) 
         if (!isHit) {
             const closeMatch = fuzzyMatchVariant(normQuery);
             if (closeMatch) {
-                // Show "did you mean?" suggestion — not a true miss
-                const existing = document.getElementById('searchInput');
-                showNotification(`Did you mean: ${closeMatch}?`, 'info', 5000);
-                // Still log it as a near-miss so we can track spelling patterns
-                // but don't add to miss queue
+                // Store the suggestion in STATE so the sidebar empty state can render
+                // a clickable inline card — far more useful than a disappearing notification.
+                // The dropdown already shows "Similar variants" for the miss card,
+                // but the sidebar list empty state (rendered by renderVariantList) needs this.
+                STATE.view._didYouMean = { original: query, suggestion: closeMatch };
+                // Still log as near-miss to track spelling patterns, but don't add to miss queue
             } else {
+                STATE.view._didYouMean = null;
                 // True miss — upsert into miss queue with top_hospital
                 const missRes = await fetch(
                     `${CONFIG.SUPABASE.URL}/rest/v1/search_miss_queue?on_conflict=query`,
@@ -8809,6 +8843,9 @@ function applyFilterChain() {
     const effectiveMin   = isNumericQuery ? 2 : 3;
     const shouldSearch   = q.length >= effectiveMin;
 
+    // Clear did-you-mean on every new search — stale suggestions confuse
+    if (shouldSearch) STATE.view._didYouMean = null;
+
     // ── Search / structured filter ────────────────────────────────────────────
     if (shouldSearch) {
         const { nameQuery, filters } = parseStructuredQuery(q);
@@ -9413,13 +9450,24 @@ function renderVariantList() {
     if (countEl) countEl.textContent = isSearching ? total.toLocaleString() : '';
     if (labelEl) {
         if (isSearching) {
-            const norm = normaliseQuery(q);
-            const transformed = norm !== q.toLowerCase().replace(/[-\s]/g,'').replace(/^[pcrmn]\./, '');
-            labelEl.textContent = total === 1
-                ? 'exact match'
-                : total === 0
-                ? 'no results'
-                : `result${total !== 1 ? 's' : ''} for "${transformed ? norm : q}"`;
+            const norm        = normaliseQuery(q);
+            const steps       = _lastNormSteps || [];
+            const transformed = steps.length > 0;
+            // FIX #5 — Show normalisation transformation inline so clinicians
+            // understand why a different-looking result appeared.
+            // "Phe508del → f508del (three-letter AA → single letter)"
+            if (transformed && total > 0) {
+                labelEl.innerHTML = `<span style="color:var(--text-tertiary);">searched as</span>
+                    <code style="font-family:var(--font-mono);color:#93c5fd;background:rgba(41,121,255,0.1);
+                                 padding:1px 4px;border-radius:3px;font-size:9px;">${escapeHTML(norm)}</code>
+                    <span style="color:var(--text-tertiary);font-size:9px;">(${steps.slice(0,2).map(escapeHTML).join(', ')})</span>`;
+            } else {
+                labelEl.textContent = total === 1
+                    ? 'exact match'
+                    : total === 0
+                    ? 'no results'
+                    : `result${total !== 1 ? 's' : ''}`;
+            }
         } else {
             labelEl.textContent = '';
         }
@@ -9482,6 +9530,30 @@ function renderVariantList() {
         // If results exist in other classes, show them with a "remove class filter" CTA
         const crossCount   = STATE.view._crossClassCount || 0;
         const crossResults = STATE.view._crossClassResults || [];
+
+        // FIX #1 — Did you mean: inline clickable card, replaces the disappearing notification
+        const dym = STATE.view._didYouMean;
+        const didYouMeanHTML = (dym && dym.suggestion && !crossCount) ? `
+            <div style="margin-top:12px;padding:10px 14px;
+                        background:rgba(41,121,255,0.06);border:1px solid rgba(41,121,255,0.22);
+                        border-radius:8px;text-align:left;cursor:pointer;transition:background .15s;"
+                 onclick="document.getElementById('searchInput').value='${escapeAttr(dym.suggestion)}';STATE.view.searchQuery='${escapeAttr(dym.suggestion)}';applyFilterChain();"
+                 onmouseover="this.style.background='rgba(41,121,255,0.11)'"
+                 onmouseout="this.style.background='rgba(41,121,255,0.06)'">
+                <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px;letter-spacing:.05em;text-transform:uppercase;">
+                    <i class="fas fa-spell-check" style="margin-right:4px;"></i>Did you mean?
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:14px;font-weight:700;color:var(--brand);font-family:var(--font-mono);">
+                        ${escapeHTML(dym.suggestion)}
+                    </span>
+                    <span style="font-size:10px;color:var(--text-tertiary);">— click to search</span>
+                </div>
+                <div style="font-size:10px;color:var(--text-tertiary);margin-top:3px;">
+                    <span style="font-family:var(--font-mono);color:var(--text-secondary);">"${escapeHTML(dym.original)}"</span>
+                    is 1 edit away from this variant
+                </div>
+            </div>` : '';
         const crossHatch   = crossCount > 0 ? `
             <div style="margin-top:14px;padding:10px 14px;background:rgba(251,191,36,0.06);
                         border:1px solid rgba(251,191,36,0.2);border-radius:8px;text-align:left;">
@@ -9506,6 +9578,7 @@ function renderVariantList() {
                 <div class="list-empty-icon"><i class="fas fa-search"></i></div>
                 <p style="font-family:var(--font-mono);font-size:13px;color:var(--text-secondary);">"${escapedQ}"</p>
                 <p style="margin-top:4px;font-size:11px;color:var(--text-tertiary);">not in local database${STATE.view.classFilter !== 'all' && !crossCount ? ` (Class ${escapeHTML(STATE.view.classFilter)} filter active)` : ''}</p>
+                ${didYouMeanHTML}
                 ${crossHatch}
                 ${!crossCount ? (isRunning ? `
                 <div class="neu-lookup-running" style="margin-top:16px;">
@@ -20160,7 +20233,7 @@ async function loadCrossSessionHistory() {
     } catch(e) { /* non-fatal */ }
 }
 
-function _sdRow(name, variantId, icon, iconColor, meta, metaColor) {
+function _sdRow(name, variantId, icon, iconColor, meta, metaColor, subtitle) {
     // Build a search-dropdown row — pure string, no template literals, no quote conflicts
     const v    = STATE.variantsById.get(variantId);
     const cls  = v ? ' &middot; Class ' + escapeHTML(v.cftr_class || '?') : '';
@@ -20170,7 +20243,7 @@ function _sdRow(name, variantId, icon, iconColor, meta, metaColor) {
          + '<div style="display:flex;align-items:center;gap:8px;flex:1;">'
          + '<i class="fas ' + icon + '" style="font-size:10px;color:' + iconColor + ';flex-shrink:0;"></i>'
          + '<span style="font-size:12px;font-weight:600;color:var(--text-primary);font-family:var(--font-mono);">'
-         + escapeHTML(name) + '</span>'
+         + escapeHTML(name) + (subtitle || '') + '</span>'
          + '<span style="font-size:10px;color:var(--text-tertiary);">' + cls + '</span>'
          + '<span style="margin-left:auto;font-size:10px;color:' + metaColor + ';">' + escapeHTML(String(meta)) + '</span>'
          + '</div></div>';
@@ -20197,8 +20270,15 @@ function renderSearchHistoryDropdown() {
              + 'background:none;border:none;cursor:pointer;font-family:var(--font-body);">Clear</button>'
              + '</div>';
         recentEntries.forEach(h => {
-            html += _sdRow(h.variantName || h.query, h.variantId, 'fa-history',
-                           'var(--text-tertiary)', formatTimeAgo(h.ts), 'var(--text-tertiary)');
+            // FIX #8 — show what the clinician actually typed (h.original),
+            // with a subtle subtitle showing the normalised form if they differ.
+            const displayLabel = h.original || h.variantName || h.query;
+            const showNorm = h.original && h.original.toLowerCase() !== h.query && h.query !== h.variantName;
+            const subtitle = showNorm
+                ? `<span style="font-size:9px;color:var(--text-tertiary);font-family:var(--font-mono);margin-left:4px;">→ ${escapeHTML(h.query)}</span>`
+                : '';
+            html += _sdRow(h.variantName || displayLabel, h.variantId, 'fa-history',
+                           'var(--text-tertiary)', formatTimeAgo(h.ts), 'var(--text-tertiary)', subtitle);
         });
     }
 
