@@ -7939,6 +7939,8 @@ function geoV4RenderMarkers(){
     set('geoStripRate',hitRatePct+'%');
     set('geoStripHosp',hospLabel);
     geoV4RenderRegions(rows);
+    // Update insight strip — surfaces the most important signals above the map
+    _geoUpdateInsightStrip(rows, pts);
     // Re-apply choropleth overlay if active
     if (window._geoState.layerChoropleth) geoV4RenderChoropleth();
 }
@@ -8250,7 +8252,7 @@ function geoV4RenderDetail(p){
         <!-- Query feed -->
         <div style="flex:1;overflow-y:auto;min-height:0;">
             ${hitQs.length?`
-            <div class="geo-v4-sticky-head">
+            <div class="geo-section-head">
                 <span style="font-size:8.5px;font-family:var(--font-mono);color:rgba(255,255,255,0.22);text-transform:uppercase;letter-spacing:.14em;">Resolved</span>
                 <span style="font-size:8.5px;font-family:var(--font-mono);color:rgba(52,211,153,0.4);">${hitQs.length}</span>
             </div>
@@ -8261,7 +8263,7 @@ function geoV4RenderDetail(p){
             </div>`).join('')}
             ${hitQs.length>8?`<div style="padding:5px 18px;font-size: 11px;color:rgba(255,255,255,0.2);font-family:var(--font-mono);">+${hitQs.length-8} more</div>`:''}`:''}
             ${missQs.length?`
-            <div class="geo-v4-sticky-head">
+            <div class="geo-section-head">
                 <span style="font-size:8.5px;font-family:var(--font-mono);color:rgba(255,255,255,0.22);text-transform:uppercase;letter-spacing:.14em;">Unresolved</span>
                 <span style="font-size:8.5px;font-family:var(--font-mono);color:rgba(248,113,113,0.4);">${missQs.length}</span>
             </div>
@@ -8272,13 +8274,172 @@ function geoV4RenderDetail(p){
             </div>`).join('')}`:''}
         </div>
         <!-- Footer actions -->
-        <div style="flex-shrink:0;border-top:1px solid rgba(255,255,255,0.05);padding:9px 16px;background:rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:space-between;">
-            <span style="font-family:var(--font-mono);font-size: 11px;color:rgba(255,255,255,0.22);"><span style="color:rgba(255,255,255,0.45);">${total}</span> search events</span>
-            <span style="font-family:var(--font-mono);font-size: 11px;color:#60a5fa;cursor:pointer;letter-spacing:.02em;" onclick="showNotification('Flagged for Helios review','info')">Flag to Helios →</span>
+        <div style="flex-shrink:0;border-top:1px solid var(--geo-border);padding:9px 16px;background:rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--geo-text3);">
+                <span style="color:var(--geo-text);">${total}</span> search events
+                ${missQs.length ? `· <span style="color:var(--geo-miss);">${missQs.length} unresolved</span>` : ''}
+            </span>
+            <button class="geo-flag-btn ${missQs.length >= 3 ? 'urgent' : ''}"
+                onclick="geoFlagToHelios(${JSON.stringify({
+                    name: escapeAttr(displayName),
+                    country: escapeAttr(p.country||''),
+                    total, hits: p.hits, misses: p.misses,
+                    hitRate, missQueries: missQs.slice(0,10).map(q=>q.q)
+                }).replace(/"/g,'&quot;')})"
+                title="Create a Helios review item from this location's miss pattern">
+                <i class="fas fa-sun" style="font-size:9px;"></i>
+                Flag to Helios
+            </button>
         </div>`;
 }
 
 function renderGeoDetail(p,citiesEl,variantsEl){ geoV4RenderDetail(p); }
+
+// ================================================================
+// GEO → HELIOS: Flag a location's miss pattern as a review item
+// Called from the detail panel footer "Flag to Helios" button.
+// Creates a REGIONAL_SIGNAL item in helios_pending_review.
+// ================================================================
+async function geoFlagToHelios(data) {
+    if (typeof data === 'string') {
+        try { data = JSON.parse(data); } catch(e) { showNotification('Flag failed: bad data', 'error'); return; }
+    }
+    const missCount = (data.missQueries || []).length;
+    const priority  = missCount >= 3 || data.hitRate < 40 ? 'URGENT' : 'ROUTINE';
+
+    showNotification(
+        `Flagging ${escapeHTML(data.name)} to Helios…`,
+        'info', 2000
+    );
+
+    try {
+        await heliosCreatePendingItem({
+            item_type:       'REGIONAL_SIGNAL',
+            priority,
+            variant_name:    data.missQueries?.[0] || null,
+            bot_summary:     `Geographic miss pattern: ${escapeHTML(data.name)} (${data.country}) — ${data.misses} misses / ${data.total} searches · ${data.hitRate}% hit rate`,
+            bot_reasoning:   `This location has a ${data.hitRate}% hit rate with ${data.misses} unresolved searches.`
+                + (missCount ? ` Top unresolved queries: ${data.missQueries.slice(0,5).map(q => '"'+q+'"').join(', ')}.` : '')
+                + ` These may represent locally prevalent CFTR variants not yet in the database.`,
+            bot_confidence:  missCount >= 5 ? 85 : missCount >= 2 ? 65 : 45,
+            scan_source:     'GEO_FLAG',
+            evidence_payload: JSON.stringify({ location: data.name, country: data.country, hitRate: data.hitRate, missQueries: data.missQueries })
+        });
+        showNotification(
+            `${escapeHTML(data.name)} flagged to Helios as ${priority} — open Helios to review`,
+            'success', 4000
+        );
+        heliosUpdateBadge();
+    } catch(e) {
+        showNotification(`Flag failed: ${e.message}`, 'error');
+    }
+}
+Object.assign(window, { geoFlagToHelios });
+
+// ================================================================
+// INSIGHT STRIP
+// Surfaces the 3 most important signals from the current geo data
+// as coloured cards above the map. Updates after every marker render.
+// Called by geoV4RenderMarkers after the stats strip update.
+// ================================================================
+function _geoUpdateInsightStrip(rows, pts) {
+    const strip = document.getElementById('geoInsightStrip');
+    if (!strip) return;
+
+    const insights = [];
+
+    // 1 — Overall hit rate
+    const totalSearches = rows.length;
+    const totalHits     = rows.filter(r => r.is_hit).length;
+    const hitRate       = totalSearches > 0 ? Math.round(totalHits / totalSearches * 100) : null;
+    if (hitRate !== null) {
+        const state = hitRate >= 70 ? 'hit' : hitRate >= 40 ? 'warn' : 'miss';
+        insights.push({ state, val: hitRate + '%', lbl: 'Network hit rate', icon: 'fa-bullseye' });
+    }
+
+    // 2 — Miss cluster: variants searched from 2+ institutions with 0 hits
+    const missMap = new Map();
+    rows.filter(r => !r.is_hit).forEach(r => {
+        if (!r.query) return;
+        const nq = r.query.trim().toLowerCase();
+        if (!missMap.has(nq)) missMap.set(nq, { query: r.query, institutions: new Set(), count: 0 });
+        const m = missMap.get(nq);
+        m.count++;
+        if (r.hospital_name) m.institutions.add(r.hospital_name);
+    });
+    const multiInstMisses = Array.from(missMap.values())
+        .filter(m => m.institutions.size >= 2)
+        .sort((a, b) => b.institutions.size - a.institutions.size);
+    if (multiInstMisses.length) {
+        insights.push({
+            state: 'miss',
+            val: multiInstMisses.length,
+            lbl: `multi-site miss${multiInstMisses.length !== 1 ? 'es' : ''}`,
+            icon: 'fa-exclamation-triangle',
+            title: 'Variants missed by 2+ institutions: ' + multiInstMisses.slice(0,3).map(m=>m.query).join(', ')
+        });
+
+        // Auto-create Helios items for new multi-site miss clusters
+        _geoAutoFlagMissClusters(multiInstMisses);
+    }
+
+    // 3 — Top active location
+    if (pts.length) {
+        const top = [...pts].sort((a,b) => (b.hits+b.misses) - (a.hits+a.misses))[0];
+        if (top) {
+            insights.push({
+                state: 'info',
+                val: top.hits + top.misses,
+                lbl: (top.hospital || top.city || 'Top location') + ' searches',
+                icon: 'fa-hospital'
+            });
+        }
+    }
+
+    // 4 — Location count
+    if (pts.length > 0) {
+        insights.push({ state: 'info', val: pts.length, lbl: 'active location' + (pts.length !== 1 ? 's' : ''), icon: 'fa-map-marker-alt' });
+    }
+
+    if (!insights.length) { strip.style.display = 'none'; return; }
+
+    strip.innerHTML = insights.map(ins => `
+        <div class="geo-insight ${ins.state}" ${ins.title ? `title="${escapeAttr(ins.title)}"` : ''}>
+            <i class="fas ${ins.icon}" style="font-size:11px;opacity:.7;flex-shrink:0;"></i>
+            <div>
+                <div class="geo-insight-val">${escapeHTML(String(ins.val))}</div>
+                <div class="geo-insight-lbl">${escapeHTML(ins.lbl)}</div>
+            </div>
+        </div>`).join('');
+    strip.style.display = 'flex';
+}
+
+// ================================================================
+// AUTO MISS CLUSTER → HELIOS
+// When 2+ institutions search for the same variant and get nothing,
+// auto-create a REGIONAL_SIGNAL Helios item — no manual flagging needed.
+// Runs after every geoV4RenderMarkers call. Deduplication is handled
+// by heliosCreatePendingItem which skips items already pending.
+// ================================================================
+async function _geoAutoFlagMissClusters(clusters) {
+    const urgent = clusters.filter(m => m.institutions.size >= 3 || m.count >= 5);
+    for (const m of urgent.slice(0, 3)) { // cap at 3 auto-flags per render
+        try {
+            await heliosCreatePendingItem({
+                item_type:      'REGIONAL_SIGNAL',
+                priority:       m.institutions.size >= 3 ? 'URGENT' : 'ROUTINE',
+                variant_name:   m.query,
+                bot_summary:    `Multi-site miss cluster: "${m.query}" — searched ${m.count}× from ${m.institutions.size} institution${m.institutions.size!==1?'s':''}`,
+                bot_reasoning:  `"${m.query}" returned zero results at ${Array.from(m.institutions).slice(0,3).join(', ')}. `
+                    + `${m.count} total searches across ${m.institutions.size} sites with no match suggests this variant may be locally prevalent but absent from the database.`,
+                bot_confidence: Math.min(95, 50 + m.institutions.size * 12 + m.count * 2),
+                scan_source:    'GEO_AUTO_CLUSTER',
+                evidence_payload: JSON.stringify({ query: m.query, count: m.count, institutions: Array.from(m.institutions) })
+            });
+        } catch(e) { /* non-fatal — never block map render */ }
+    }
+    if (urgent.length) heliosUpdateBadge();
+}
 
 // ---- Search Intelligence PDF Report ----
 async function exportSearchPDF() {
