@@ -1174,7 +1174,52 @@
         .search-result-count {
             font-weight: 700;
             color: var(--brand);
+            transition: color 200ms;
         }
+        /* Three distinct count states */
+        .search-result-count.state-exact   { color: #34d399; }  /* green  — exact hit     */
+        .search-result-count.state-partial { color: #fbbf24; }  /* amber  — partial match */
+        .search-result-count.state-miss    { color: #f87171; }  /* red    — no results    */
+
+        /* Partial match line — sits below the count row, above chips */
+        #partialMatchLine {
+            display: none;
+            padding: 4px 10px 2px;
+            font-size: 10px;
+            font-family: var(--font-mono);
+            color: #fbbf24;
+            align-items: center;
+            gap: 6px;
+            animation: partialFadeIn 180ms ease;
+        }
+        #partialMatchLine.visible { display: flex; }
+        @keyframes partialFadeIn {
+            from { opacity: 0; transform: translateY(-3px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        #partialMatchLine .pml-query {
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            background: rgba(251,191,36,0.08);
+            border: 1px solid rgba(251,191,36,0.2);
+            border-radius: 3px;
+            padding: 0 4px;
+            font-size: 9px;
+        }
+        #partialMatchLine .pml-lookup {
+            margin-left: auto;
+            color: #fbbf24;
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-size: 10px;
+            font-family: var(--font-mono);
+            padding: 0;
+            opacity: 0.75;
+            transition: opacity 150ms;
+            white-space: nowrap;
+        }
+        #partialMatchLine .pml-lookup:hover { opacity: 1; }
         .search-result-clear {
             margin-left: auto;
             font-size: 10px;
@@ -4568,6 +4613,8 @@
                         <i class="fas fa-times" style="font-size:9px;margin-right:3px;"></i>clear
                     </button>
                 </div>
+                <!-- Partial match line — amber signal when no exact hit exists -->
+                <div id="partialMatchLine" aria-live="polite"></div>
                 <!-- Active filter summary bar — FIX #11 -->
                 <div id="activeFilterBar" style="display:none;padding:0;"></div>
                 <!-- Divider -->
@@ -9183,6 +9230,11 @@ function clearSearch() {
     document.getElementById('searchClear')?.classList.add('hidden');
     document.getElementById('searchDropdown')?.classList.add('hidden');
     document.getElementById('appShell')?.classList.remove('search-active');
+    // Reset count state and partial line
+    const countEl = document.getElementById('searchResultCount');
+    if (countEl) { countEl.textContent = ''; countEl.className = 'search-result-count'; }
+    const partialEl = document.getElementById('partialMatchLine');
+    if (partialEl) { partialEl.classList.remove('visible'); partialEl.innerHTML = ''; }
     document.querySelectorAll('.variant-row.exact-confirmed, .variant-row.exact-incomplete')
         .forEach(r => r.classList.remove('exact-confirmed', 'exact-incomplete'));
     helixHideMissAction();
@@ -9444,32 +9496,81 @@ function renderVariantList() {
 
     setText('listCount', total.toLocaleString());
 
-    // Update search result bar
-    const countEl = document.getElementById('searchResultCount');
-    const labelEl = document.getElementById('searchResultLabel');
-    if (countEl) countEl.textContent = isSearching ? total.toLocaleString() : '';
+    // ── Search result bar — three distinct states ─────────────────────────────
+    //
+    //  🟢 EXACT   (tier 0)  → green count · "exact match" · no partial line
+    //  🟡 PARTIAL (tier 1+) → amber count · "N partial matches" · amber line below
+    //  🔴 MISS    (0 results)→ red count   · "no results" · no partial line
+    //  ⚪ BROWSE  (no query) → default blue count · no labels
+    //
+    const countEl  = document.getElementById('searchResultCount');
+    const labelEl  = document.getElementById('searchResultLabel');
+    const partialEl= document.getElementById('partialMatchLine');
+    const tier     = STATE.searchIntelligence._lastSearchTier ?? -1;
+
+    // Determine match quality
+    const normQ       = isSearching ? normaliseQuery(q) : '';
+    const indexHitQ   = STATE.searchIndex.lookup?.get(normQ) || STATE.searchIndex.lookup?.get(q?.toLowerCase().trim());
+    const hasExact    = isSearching && tier === 0 && total > 0;
+    const hasMiss     = isSearching && total === 0;
+    const hasPartial  = isSearching && total > 0 && !hasExact;
+
+    if (countEl) {
+        countEl.textContent = isSearching ? total.toLocaleString() : '';
+        countEl.className = 'search-result-count '
+            + (hasExact   ? 'state-exact'
+             : hasMiss    ? 'state-miss'
+             : hasPartial ? 'state-partial'
+             : '');
+    }
+
     if (labelEl) {
-        if (isSearching) {
-            const norm        = normaliseQuery(q);
+        if (!isSearching) {
+            labelEl.textContent = '';
+        } else {
             const steps       = _lastNormSteps || [];
             const transformed = steps.length > 0;
-            // FIX #5 — Show normalisation transformation inline so clinicians
-            // understand why a different-looking result appeared.
-            // "Phe508del → f508del (three-letter AA → single letter)"
-            if (transformed && total > 0) {
+            if (hasExact) {
+                labelEl.textContent = total === 1 ? 'exact match' : `exact match${total > 1 ? 'es' : ''}`;
+            } else if (hasMiss) {
+                labelEl.textContent = 'no results';
+            } else if (hasPartial) {
+                // "partial matches" — the key word that tells the clinician
+                // these are related results, not a confirmed hit
+                labelEl.textContent = `partial match${total !== 1 ? 'es' : ''}`;
+            } else if (transformed && total > 0) {
+                // Normalisation transform — show what was searched
                 labelEl.innerHTML = `<span style="color:var(--text-tertiary);">searched as</span>
                     <code style="font-family:var(--font-mono);color:#93c5fd;background:rgba(41,121,255,0.1);
-                                 padding:1px 4px;border-radius:3px;font-size:9px;">${escapeHTML(norm)}</code>
+                                 padding:1px 4px;border-radius:3px;font-size:9px;">${escapeHTML(normQ)}</code>
                     <span style="color:var(--text-tertiary);font-size:9px;">(${steps.slice(0,2).map(escapeHTML).join(', ')})</span>`;
             } else {
-                labelEl.textContent = total === 1
-                    ? 'exact match'
-                    : total === 0
-                    ? 'no results'
-                    : `result${total !== 1 ? 's' : ''}`;
+                labelEl.textContent = `result${total !== 1 ? 's' : ''}`;
             }
+        }
+    }
+
+    // ── Partial match line ────────────────────────────────────────────────────
+    // Shown only when results exist but none is an exact match.
+    // Gives a non-alarming explanation + one-click external lookup shortcut.
+    if (partialEl) {
+        if (hasPartial) {
+            const escapedQ = escapeHTML(q);
+            const escapedQAttr = escapeAttr(q);
+            partialEl.innerHTML = `
+                <i class="fas fa-exclamation-circle" style="font-size:9px;opacity:.7;flex-shrink:0;"></i>
+                <span style="color:var(--text-tertiary);">No exact match for</span>
+                <span class="pml-query">${escapedQ}</span>
+                <span style="color:var(--text-tertiary);">— showing related</span>
+                <button class="pml-lookup"
+                    onclick="triggerExternalLookup('${escapedQAttr}')"
+                    title="Search ClinVar · CFTR2 · PubMed for this exact name">
+                    look up externally →
+                </button>`;
+            partialEl.classList.add('visible');
         } else {
-            labelEl.textContent = '';
+            partialEl.classList.remove('visible');
+            partialEl.innerHTML = '';
         }
     }
 
