@@ -10157,6 +10157,8 @@ function renderVariantDetail(variant, fromSearch) {
     document.getElementById('detailEmpty').classList.add('hidden');
     const container = document.getElementById('variantDetail');
     container.classList.remove('hidden');
+
+    try {
     // Auto-refresh compare tray if pinned
     if (COMPARE_STATE.pinned && variant.id !== COMPARE_STATE.pinned.id) {
         requestAnimationFrame(() => helixRenderCompareTray());
@@ -10546,6 +10548,28 @@ function renderVariantDetail(variant, fromSearch) {
     });
     // Load variant notes async
     setTimeout(() => loadVariantNotes(variant.id), 120);
+
+    } catch (renderErr) {
+        // Catch any render error so the canvas never shows a silent black screen.
+        // Shows a clear error message with the variant name and the failure reason.
+        console.error('[NeumuacFQ] renderVariantDetail failed:', renderErr);
+        container.innerHTML = `
+            <div style="padding:40px 32px;text-align:center;color:var(--text-tertiary);">
+                <i class="fas fa-exclamation-triangle" style="font-size:28px;color:#f87171;display:block;margin-bottom:14px;opacity:.7;"></i>
+                <div style="font-size:14px;font-weight:700;color:var(--text-secondary);margin-bottom:8px;">
+                    Could not render <span style="font-family:var(--font-mono);color:var(--text-primary);">${escapeHTML(variant?.legacy_name || '—')}</span>
+                </div>
+                <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:16px;font-family:var(--font-mono);">
+                    ${escapeHTML(renderErr.message)}
+                </div>
+                <button onclick="renderVariantDetail(STATE.view.selectedVariant, false)"
+                    style="padding:7px 18px;border-radius:7px;border:1px solid rgba(41,121,255,0.3);
+                           background:rgba(41,121,255,0.08);color:#60a5fa;cursor:pointer;
+                           font-size:12px;font-family:var(--font-body);">
+                    <i class="fas fa-redo" style="font-size:10px;margin-right:6px;"></i>Retry
+                </button>
+            </div>`;
+    }
 }
 
 function dataField(label, value, field, variant) {
