@@ -10018,6 +10018,16 @@ function toggleSidebar() {
 // KPI cards + priority queue + Helios inbox + recent searches
 // Called on init and whenever the empty state becomes visible
 // ================================================================
+
+/* ── v5: silence pre-existing fetch rejections that are already handled ── */
+window.addEventListener('unhandledrejection', function(e) {
+    var msg = (e.reason && e.reason.message) || String(e.reason);
+    if (msg.includes('Failed to fetch') || msg.includes('Load failed')) {
+        e.preventDefault();   // stop it surfacing as red console error
+        console.warn('[NeumuacFQ v5] Network fetch failed (handled):', msg);
+    }
+});
+
 /* v5 toast helper */
 function v5Toast(msg, type) {
     var c = document.getElementById('v5Toasts');
@@ -10034,14 +10044,15 @@ function v5Toast(msg, type) {
 
 function renderHomeDashboard() {
     /* ── v5 iPhone-level home dashboard ─────────────────────────────────── */
+    if (!STATE || !Array.isArray(STATE.variants)) return;   /* guard: called before init */
     var total   = STATE.variants.length;
 
     /* ── KPI STRIP ── */
     var kpiEl = document.getElementById('homeKpiStrip');
     if (kpiEl) {
-        var critCount     = STATE.variants.filter(function(v){ return calculateGapScore(v).gapLevel === 'CRITICAL'; }).length;
+        var critCount     = (typeof calculateGapScore === 'function') ? STATE.variants.filter(function(v){ try{ return calculateGapScore(v).gapLevel === 'CRITICAL'; }catch(e){return false;} }).length : 0;
         var etiCount      = STATE.variants.filter(function(v){ return v.eti_prediction === 'responsive'; }).length;
-        var missingCount  = STATE.variants.filter(hasMissingData).length;
+        var missingCount  = (typeof hasMissingData === 'function') ? STATE.variants.filter(function(v){ try{return hasMissingData(v);}catch(e){return false;} }).length : 0;
         var completeCount = STATE.variants.filter(function(v){ return !hasMissingData(v) && v.cftr_class && v.eti_prediction && v.eti_prediction !== 'unknown'; }).length;
         var etiPct        = total ? Math.round(etiCount  / total * 1000) / 10 : 0;
         var missPct       = total ? Math.round(missingCount / total * 1000) / 10 : 0;
@@ -10160,7 +10171,7 @@ function renderHomeDashboard() {
             var lastDays = v.last_searched_at ? (Date.now() - new Date(v.last_searched_at)) / 86400000 : 999;
             var demandW  = hits >= 30 ? 2.0 : hits >= 10 ? 1.5 : hits >= 3 ? 1.2 : 1.0;
             var recencyW = lastDays <= 7 ? 1.4 : lastDays <= 30 ? 1.2 : 1.0;
-            var heliosItems = (HELIOS.pendingItems||[]).filter(function(i){ return i.variant_id === v.id; });
+            var heliosItems = ((typeof HELIOS !== 'undefined' && HELIOS.pendingItems) ? HELIOS.pendingItems : []).filter(function(i){ return i.variant_id === v.id; });
             var heliosB = heliosItems.some(function(i){ return i.priority === 'URGENT'; }) ? 3.0
                         : heliosItems.length > 0 ? 1.2 : 1.0;
             var valPen   = (!(v.validation_count||0) && hits >= 3) ? 15 : 0;
@@ -10204,7 +10215,7 @@ function renderHomeDashboard() {
     var helEl    = document.getElementById('homeHeliosList');
     var helBadge = document.getElementById('homeHeliosBadge');
     if (helEl) {
-        var pending = (HELIOS.pendingItems || []).filter(function(i){ return i.status === 'pending'; }).slice(0, 5);
+        var pending = ((typeof HELIOS !== 'undefined' && HELIOS.pendingItems) ? HELIOS.pendingItems : []).filter(function(i){ return i.status === 'pending'; }).slice(0, 5);
         if (helBadge) helBadge.textContent = pending.length ? pending.length + ' pending' : '';
 
         if (!pending.length) {
@@ -10251,7 +10262,8 @@ function renderHomeDashboard() {
     /* ── YOUR RECENT — grid cards ── */
     var recEl = document.getElementById('homeRecentList');
     if (recEl) {
-        var history = (typeof getSearchHistory === 'function') ? getSearchHistory().slice(0, 12) : [];
+        var history = [];
+        try { if (typeof getSearchHistory === 'function') history = getSearchHistory().slice(0, 12); } catch(e) {}
         recEl.className = 'v5-recent-grid';
         recEl.style.cssText = '';   /* clear inline flex styles */
 
@@ -10260,7 +10272,7 @@ function renderHomeDashboard() {
         } else {
             recEl.innerHTML = history.map(function(h) {
                 var name = h.variantName || h.query;
-                var v    = STATE.variantsById.get(h.variantId);
+                var v    = null; try { if (STATE.variantsById && h.variantId) v = STATE.variantsById.get(h.variantId); } catch(e) {}
                 var cls  = v && v.cftr_class ? v.cftr_class : '';
                 var age  = (typeof formatTimeAgo === 'function') ? formatTimeAgo(h.ts) : '';
                 /* Pick class badge colour */
@@ -15513,7 +15525,7 @@ function kbOpenCommandPalette() {
                 const clsColor = cls ? (CLASS_COLORS[cls] || 'var(--text-tertiary)') : 'var(--text-tertiary)';
                 const etiColor = ETI_COLORS[v.eti_prediction] || 'var(--text-tertiary)';
                 const isEtiRes = v.eti_prediction === 'responsive';
-                return `<div class="cmd-row" data-idx="${i}" onclick="selectVariant('${escapeAttr(v.legacy_name)}',true);overlay_close();"
+                return `<div class="cmd-row" data-idx="${i}" onclick="selectVariant('${escapeAttr(v.legacy_name)}',true);(window._cmdOverlay&&window._cmdOverlay.remove());"
                     style="display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;
                            transition:background .1s;border-bottom:1px solid rgba(255,255,255,0.03);">
                     <i class="fas fa-dna" style="font-size:10px;color:var(--text-tertiary);flex-shrink:0;width:14px;"></i>
@@ -15538,13 +15550,15 @@ function kbOpenCommandPalette() {
             Object.entries(groups).forEach(([grp, cmds]) => {
                 html += `<div style="padding:5px 14px 3px;font-size:9px;font-weight:700;text-transform:uppercase;
                                      letter-spacing:.1em;color:var(--text-tertiary);">${escapeHTML(grp||'Commands')}</div>`;
-                html += cmds.map((c, i) => `
-                    <div class="cmd-row" data-idx="${cmdIdx + i}" onclick="this.closest('[id]').remove();(${c.action.toString()})();"
+                html += cmds.map((c, i) => {
+                    const safeKey = encodeURIComponent(c.label);
+                    return `<div class="cmd-row" data-idx="${cmdIdx + i}" onclick="_nfqCmdRun(decodeURIComponent('${safeKey}'))"
                         style="display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;
                                transition:background .1s;border-bottom:1px solid rgba(255,255,255,0.03);">
                         <i class="fas ${c.icon}" style="font-size:11px;color:var(--brand);flex-shrink:0;width:14px;"></i>
                         <span style="font-size:12.5px;color:var(--text-primary);flex:1;">${escapeHTML(c.label)}</span>
-                    </div>`).join('');
+                    </div>`;
+                }).join('');
                 cmdIdx += cmds.length;
             });
         }
@@ -15563,6 +15577,17 @@ function kbOpenCommandPalette() {
     }
 
     // Global close helper for inline onclick handlers
+    // Register commands globally so _nfqCmdRun can reach them after overlay is gone
+    window._nfqCmds = {};
+    COMMANDS.forEach(function(c){ window._nfqCmds[c.label] = { action: c.action, overlay: overlay }; });
+    window._nfqCmdRun = function(label) {
+        var entry = window._nfqCmds && window._nfqCmds[label];
+        if (!entry) return;
+        // Remove the palette safely
+        var ov = document.getElementById('helixCmdPalette');
+        if (ov) ov.remove();
+        try { entry.action(); } catch(e) { console.warn('[NeumuacFQ] cmd error:', e); }
+    };
     overlay.overlay_close = () => overlay.remove();
     window._cmdOverlay = overlay;
     inp.addEventListener('input', () => renderCmdResults(inp.value));
