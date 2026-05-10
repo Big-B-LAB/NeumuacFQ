@@ -6233,6 +6233,12 @@
             <div style="padding:0 12px;border-left:1px solid rgba(255,255,255,.05);">
                 <button class="cfsm-chip" id="cfsmEtiFilter" onclick="cfsmToggleEti(this)" title="Show only ETI-responsive searches">ETI only</button>
             </div>
+            <!-- Region shortcuts -->
+            <div style="display:flex;gap:5px;padding:0 12px;border-left:1px solid rgba(255,255,255,.05);">
+                <button class="cfsm-chip" onclick="cfsmZoomRegion('world')" title="World view">🌍</button>
+                <button class="cfsm-chip" onclick="cfsmZoomRegion('europe')" title="Europe">EU</button>
+                <button class="cfsm-chip" onclick="cfsmZoomRegion('americas')" title="Americas">AM</button>
+            </div>
         </div>
 
         <!-- ── Main content: map + panel ── -->
@@ -8606,7 +8612,7 @@ async function cfsmFetchData() {
     // Load world atlas
     if (!st.geoJson) {
         try {
-            const r = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json');
+            const r = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
             if (r.ok) {
                 const topo = await r.json();
                 st.geoJson = topojson.feature(topo, topo.objects.countries);
@@ -8712,27 +8718,31 @@ function cfsmBuild() {
     const svgEl = document.getElementById('cfsmSvg');
     if (!wrap || !svgEl || !window.d3) return;
 
-    const W = wrap.clientWidth || 700;
-    const H = wrap.clientHeight || 500;
+    const W = wrap.clientWidth  || 700;
+    const H = wrap.clientHeight || 480;
 
-    // Clear previous
     d3.select(svgEl).selectAll('*').remove();
+
     const svg = d3.select(svgEl)
         .attr('width', W).attr('height', H)
-        .style('background', '#050a12');
+        .style('background', '#050a12')
+        .style('cursor', 'grab');
 
-    // ── Projection: Natural Earth centered on Europe ──
+    // ── World projection: Natural Earth, true world view ──
+    // Scale so the full globe fits comfortably; users can zoom in
     const proj = d3.geoNaturalEarth1()
-        .scale(Math.min(W, H) * 0.9)
-        .center([15, 48])
-        .translate([W * 0.42, H * 0.52]);
+        .scale(W / 6.2)
+        .translate([W / 2, H / 2.1]);
     st.proj = proj;
     const path = d3.geoPath().projection(proj);
     st.path = path;
 
-    // ── Layer 0: Hairline country outlines ──
+    // ── All layers live inside this group so zoom transforms the whole scene ──
+    const g = svg.append('g').attr('class', 'cfsm-map-group');
+
+    // ── Layer 0: Country outlines ──
     if (st.geoJson) {
-        svg.append('g').attr('class', 'cfsm-countries')
+        g.append('g').attr('class', 'cfsm-countries')
             .selectAll('path')
             .data(st.geoJson.features)
             .join('path')
@@ -8740,31 +8750,90 @@ function cfsmBuild() {
             .attr('d', path);
     }
 
-    // ── Layer 1: Connection arcs (shared rare variant searches) ──
-    cfsmDrawArcs(svg, st);
+    // ── Layer 1: Connection arcs ──
+    cfsmDrawArcs(g, st);
 
     // ── Layer 2: Institution nodes ──
-    cfsmDrawNodes(svg, st, W, H);
+    cfsmDrawNodes(g, st, W, H);
 
-    // Hide loading, update mode label
+    // ── D3 Zoom — pan and scroll-wheel zoom ──
+    const zoom = d3.zoom()
+        .scaleExtent([0.5, 20])
+        .translateExtent([[-W, -H], [2*W, 2*H]])
+        .on('start', () => svg.style('cursor', 'grabbing'))
+        .on('zoom', (event) => {
+            g.attr('transform', event.transform);
+            // Scale node labels with zoom level so they don't crowd at low zoom
+            const k = event.transform.k;
+            g.selectAll('.cfsm-node-label')
+                .style('display', k < 1.5 ? 'none' : 'block');
+        })
+        .on('end', () => svg.style('cursor', 'grab'));
+    svg.call(zoom);
+
+    // Double-click to zoom into a region
+    svg.on('dblclick.zoom', null); // handled by node click
+
+    // Store zoom reference for external control
+    st._zoom = zoom;
+    st._svg = svg;
+    st._g = g;
+
+    // ── Zoom controls ──
+    cfsmAddZoomControls(svg, zoom, W, H);
+
+    // ── On initial load, auto-zoom to Europe-Middle East region ──
+    if (!st._hasZoomed) {
+        st._hasZoomed = true;
+        const initialTransform = d3.zoomIdentity
+            .translate(W * 0.1, H * 0.08)
+            .scale(1.8);
+        svg.call(zoom.transform, initialTransform);
+    }
+
+    // Hide loading
     const loading = document.getElementById('cfsmLoading');
     if (loading) loading.style.display = 'none';
 
+    // Mode label
     const modeLabel = document.getElementById('cfsmModeLabel');
-    if (modeLabel) modeLabel.textContent = {
-        network: 'NETWORK MODE',
-        variant: 'VARIANT FOCUS',
-        miss: 'MISS INTELLIGENCE'
-    }[st.mode] || 'NETWORK MODE';
+    if (modeLabel) modeLabel.textContent = { network:'NETWORK MODE', variant:'VARIANT FOCUS', miss:'MISS MAP' }[st.mode] || 'NETWORK MODE';
 
-    // Set time range labels
     cfsmUpdateTimeLabels();
-
-    // Pre-select home institution
     cfsmAutoSelectHome();
 }
 
-function cfsmDrawArcs(svg, st) {
+function cfsmAddZoomControls(svg, zoom, W, H) {
+    const g = svg.append('g').attr('transform', `translate(${W - 38},${H - 72})`);
+
+    // + button
+    g.append('rect').attr('width', 24).attr('height', 24).attr('rx', 5)
+        .attr('fill', 'rgba(8,15,30,.85)').attr('stroke', 'rgba(255,255,255,.12)').attr('stroke-width', .5)
+        .style('cursor', 'pointer')
+        .on('click', () => svg.transition().duration(300).call(zoom.scaleBy, 1.6));
+    g.append('text').attr('x', 12).attr('y', 16).attr('text-anchor', 'middle')
+        .attr('fill', 'rgba(255,255,255,.5)').attr('font-size', 14).attr('pointer-events', 'none').text('+');
+
+    // – button
+    g.append('rect').attr('y', 28).attr('width', 24).attr('height', 24).attr('rx', 5)
+        .attr('fill', 'rgba(8,15,30,.85)').attr('stroke', 'rgba(255,255,255,.12)').attr('stroke-width', .5)
+        .style('cursor', 'pointer')
+        .on('click', () => svg.transition().duration(300).call(zoom.scaleBy, 0.625));
+    g.append('text').attr('x', 12).attr('y', 44).attr('text-anchor', 'middle')
+        .attr('fill', 'rgba(255,255,255,.5)').attr('font-size', 14).attr('pointer-events', 'none').text('−');
+
+    // Reset button
+    g.append('rect').attr('y', 56).attr('width', 24).attr('height', 14).attr('rx', 4)
+        .attr('fill', 'rgba(8,15,30,.85)').attr('stroke', 'rgba(255,255,255,.1)').attr('stroke-width', .5)
+        .style('cursor', 'pointer')
+        .on('click', () => svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity.translate(W*0.1,H*0.08).scale(1.8)));
+    g.append('text').attr('x', 12).attr('y', 66).attr('text-anchor', 'middle')
+        .attr('fill', 'rgba(255,255,255,.35)').attr('font-size', 8).attr('pointer-events', 'none')
+        .attr('font-family', 'var(--font-mono)').attr('letter-spacing', '.06em').text('RST');
+}
+
+
+function cfsmDrawArcs(g, st) {
     // Compute co-occurrence: which institutions share rare variant searches?
     const variantInsts = new Map(); // variant → set of inst keys
     st.points.forEach(pt => {
@@ -8792,7 +8861,7 @@ function cfsmDrawArcs(svg, st) {
         }
     });
 
-    const arcG = svg.append('g').attr('class', 'cfsm-arcs');
+    const arcG = g.append('g').attr('class', 'cfsm-arcs');
 
     arcMap.forEach(({ a, b, count }) => {
         const ptA = st.points.find(p => p.key === a);
@@ -8820,131 +8889,158 @@ function cfsmDrawArcs(svg, st) {
     });
 }
 
-function cfsmDrawNodes(svg, st, W, H) {
-    const total = d3.sum(st.points, p => p.hits + p.misses) || 1;
+function cfsmDrawNodes(g, st, W, H) {
     const maxVol = d3.max(st.points, p => p.hits + p.misses) || 1;
-    const now = Date.now();
 
-    const nodeG = svg.append('g').attr('class', 'cfsm-nodes');
+    // ── Proper sqrt scale with sane range ──
+    // CHUAC at 847 gets ~16px, a centre at 10 gets ~4px, no node eclipses the map
+    const rScale = d3.scaleSqrt().domain([0, maxVol]).range([3.5, 16]);
+
+    const now = Date.now();
+    const nodeG = g.append('g').attr('class', 'cfsm-nodes');
+
+    // Filter by search text
+    const filterText = st.filter || '';
 
     st.points.forEach(pt => {
+        // Apply ETI filter
+        if (st.etiOnly) {
+            const etTotal = pt.etiCounts.responsive + pt.etiCounts.non_responsive + pt.etiCounts.unknown || 1;
+            if (pt.etiCounts.responsive / etTotal < 0.3) return;
+        }
+
+        // Apply text filter — dim non-matching instead of hiding
+        const matchesFilter = !filterText || pt.name.toLowerCase().includes(filterText)
+            || Object.keys(pt.queries).some(q => q.toLowerCase().includes(filterText));
+
         const pos = st.proj([pt.lon, pt.lat]);
         if (!pos) return;
         const [x, y] = pos;
-        if (x < 0 || x > W || y < 0 || y > H) return;
 
         const vol = pt.hits + pt.misses;
-        const r = Math.max(5, Math.min(28, Math.sqrt(vol / maxVol) * 26 + 4));
+        const r = rScale(vol);
 
         // ETI colour
         const etTotal = pt.etiCounts.responsive + pt.etiCounts.non_responsive + pt.etiCounts.unknown || 1;
-        const etiPct = pt.etiCounts.responsive / etTotal;
-        const nonPct = pt.etiCounts.non_responsive / etTotal;
-        const color = etiPct > 0.5 ? '#34d399'
-                    : nonPct > 0.3 ? '#f87171'
-                    : '#fbbf24';
-        const fillAlpha = st.selectedKey === pt.key ? 0.25 : 0.12;
+        const etiPct  = pt.etiCounts.responsive / etTotal;
+        const nonPct  = pt.etiCounts.non_responsive / etTotal;
+        const color = etiPct > 0.5 ? '#34d399' : nonPct > 0.3 ? '#f87171' : '#fbbf24';
 
-        // Recency: pulse if searched in last 3 days
-        const daysAgo = (now - pt.lastSeen) / 86400000;
-        const isRecent = daysAgo < 3 && pt.lastSeen > 0;
+        const daysAgo   = pt.lastSeen > 0 ? (now - pt.lastSeen) / 86400000 : 999;
+        const isRecent  = daysAgo < 3;
         const isSelected = st.selectedKey === pt.key;
+        const baseOpacity = matchesFilter ? (daysAgo < 14 ? 0.92 : 0.5) : 0.18;
 
-        const g = nodeG.append('g')
+        const ng = nodeG.append('g')
             .attr('class', 'cfsm-node')
             .attr('transform', `translate(${x},${y})`)
             .attr('data-key', pt.key)
             .style('cursor', 'pointer')
-            .on('click', () => cfsmSelectPoint(pt))
-            .on('mouseenter', function() {
-                d3.select(this).select('.cfsm-circle').attr('r', r * 1.15);
-                cfsmShowTooltip(pt, x, y);
+            .on('click', function(event) {
+                event.stopPropagation();
+                cfsmSelectPoint(pt);
+                // Zoom to clicked institution on double-click
+                if (event.detail === 2 && st._svg && st._zoom) {
+                    const transform = d3.zoomIdentity
+                        .translate(W / 2, H / 2)
+                        .scale(6)
+                        .translate(-x, -y);
+                    st._svg.transition().duration(600).call(st._zoom.transform, transform);
+                }
+            })
+            .on('mouseenter', function(event) {
+                d3.select(this).select('.cfsm-circle').attr('r', r * 1.25);
+                cfsmShowTooltip(pt, x, y, W, H);
             })
             .on('mouseleave', function() {
                 d3.select(this).select('.cfsm-circle').attr('r', isSelected ? r * 1.15 : r);
                 cfsmHideTooltip();
             });
 
-        // Pulse ring for recent institutions
+        // Pulse ring — sized relative to the node, not absolute
         if (isRecent) {
-            const ring = g.append('circle')
+            const ring = ng.append('circle')
                 .attr('r', r)
                 .attr('fill', 'none')
                 .attr('stroke', color)
-                .attr('stroke-width', 1)
+                .attr('stroke-width', .8)
                 .attr('opacity', 0);
 
             ring.append('animate')
                 .attr('attributeName', 'r')
-                .attr('values', `${r};${r * 2.5}`)
-                .attr('dur', `${1.5 + Math.random() * 0.5}s`)
+                .attr('values', `${r};${r * 2.2}`)
+                .attr('dur', `${1.8 + Math.random() * 0.6}s`)
                 .attr('repeatCount', 'indefinite');
             ring.append('animate')
                 .attr('attributeName', 'opacity')
-                .attr('values', '.7;0')
-                .attr('dur', `${1.5 + Math.random() * 0.5}s`)
+                .attr('values', '.65;0')
+                .attr('dur', `${1.8 + Math.random() * 0.6}s`)
                 .attr('repeatCount', 'indefinite');
         }
 
         // Selection ring
         if (isSelected) {
-            g.append('circle')
-                .attr('r', r + 5)
+            ng.append('circle')
+                .attr('r', r + 4)
                 .attr('fill', 'none')
                 .attr('stroke', color)
-                .attr('stroke-width', 1.5)
-                .attr('opacity', 0.6)
-                .attr('stroke-dasharray', '4 3');
+                .attr('stroke-width', 1.2)
+                .attr('opacity', .7)
+                .attr('stroke-dasharray', '3 2');
         }
 
         // Main circle
-        g.append('circle')
+        ng.append('circle')
             .attr('class', 'cfsm-circle')
             .attr('r', isSelected ? r * 1.15 : r)
             .attr('fill', color)
-            .attr('fill-opacity', fillAlpha)
+            .attr('fill-opacity', isSelected ? 0.22 : 0.1)
             .attr('stroke', color)
             .attr('stroke-width', isSelected ? 1.5 : 0.8)
-            .attr('opacity', isSelected ? 1 : (daysAgo < 7 ? 0.9 : 0.55));
+            .attr('opacity', baseOpacity);
 
-        // Label for larger nodes
-        if (r > 10 || isSelected) {
-            const label = pt.name.split(/[—–\-\(]/)[0].trim();
-            const short = label.length > 12 ? label.slice(0, 10) + '…' : label;
-            g.append('text')
-                .attr('dy', r + 12)
-                .attr('text-anchor', 'middle')
-                .attr('font-size', '9')
-                .attr('font-family', 'var(--font-mono)')
-                .attr('fill', color)
-                .attr('fill-opacity', isSelected ? 0.9 : 0.5)
-                .attr('pointer-events', 'none')
-                .text(short);
+        // Tier dot (GPS / verified)
+        if (pt.tier <= 2) {
+            ng.append('circle')
+                .attr('cx', r * 0.65).attr('cy', -r * 0.65)
+                .attr('r', 1.8)
+                .attr('fill', pt.tier === 1 ? '#34d399' : '#60a5fa')
+                .attr('opacity', .85);
         }
 
-        // Tier indicator dot
-        if (pt.tier <= 2) {
-            g.append('circle')
-                .attr('cx', r * 0.7)
-                .attr('cy', -r * 0.7)
-                .attr('r', 2.5)
-                .attr('fill', pt.tier === 1 ? '#34d399' : '#60a5fa')
-                .attr('opacity', 0.9);
+        // Label — only for selected or large nodes; hidden at low zoom via CSS class
+        if (isSelected || r > 10) {
+            const label = pt.name.split(/[—–\-(]/)[0].trim();
+            const short = label.length > 14 ? label.slice(0, 13) + '…' : label;
+            ng.append('text')
+                .attr('class', 'cfsm-node-label')
+                .attr('dy', r + 11)
+                .attr('text-anchor', 'middle')
+                .attr('font-size', '8.5')
+                .attr('font-family', 'var(--font-mono)')
+                .attr('fill', color)
+                .attr('fill-opacity', isSelected ? 0.9 : 0.55)
+                .attr('pointer-events', 'none')
+                .text(short);
         }
     });
 }
 
-function cfsmShowTooltip(pt, x, y) {
+
+function cfsmShowTooltip(pt, x, y, W, H) {
+    W = W || 700; H = H || 480;
     // Remove existing tooltip
     d3.select('#cfsmSvg').select('.cfsm-tooltip').remove();
     const svg = d3.select('#cfsmSvg');
-    const W = parseInt(svg.attr('width'));
+    // Get current zoom transform to position tooltip in screen coords
+    const transform = d3.zoomTransform(svg.node());
+    const [sx, sy] = transform.apply([x, y]);
     const vol = pt.hits + pt.misses;
     const hitRate = vol > 0 ? Math.round(pt.hits / vol * 100) : 0;
     const topQ = Object.entries(pt.queries).sort((a,b)=>b[1]-a[1])[0];
 
-    const tx = x > W * 0.6 ? x - 160 : x + 18;
-    const ty = y - 20;
+    const tx = sx > W * 0.6 ? sx - 155 : sx + 14;
+    const ty = Math.max(8, sy - 24);
 
     const g = svg.append('g').attr('class', 'cfsm-tooltip').attr('pointer-events', 'none');
     g.append('rect')
@@ -9117,6 +9213,7 @@ function cfsmSetMode(mode) {
 function cfsmSetPeriod(days, btn) {
     if (!window._cfsm) return;
     window._cfsm.period = days;
+    window._cfsm._hasZoomed = false;  // allow auto-zoom to Europe on reload
     document.querySelectorAll('.cfsm-chip').forEach(c => { if(['cfsmP7','cfsmP30','cfsmPAll'].includes(c.id)) c.classList.remove('active'); });
     if (btn) btn.classList.add('active');
     cfsmFetchData().then(() => cfsmBuild());
@@ -9135,6 +9232,22 @@ function cfsmFilterInput(val) {
     window._cfsm.filter = val.toLowerCase();
     // Highlight matching nodes by rebuilding
     cfsmBuild();
+}
+
+function cfsmZoomRegion(region) {
+    const st = window._cfsm;
+    if (!st?._svg || !st?._zoom) return;
+    const svg = st._svg;
+    const W = parseInt(svg.attr('width')) || 700;
+    const H = parseInt(svg.attr('height')) || 480;
+
+    const transforms = {
+        world:    d3.zoomIdentity.translate(W/2, H/2).scale(1),
+        europe:   d3.zoomIdentity.translate(W*0.58, H*0.75).scale(3.2),
+        americas: d3.zoomIdentity.translate(W*1.35, H*0.52).scale(2.4),
+    };
+    const t = transforms[region];
+    if (t) svg.transition().duration(600).call(st._zoom.transform, t);
 }
 
 function cfsmScrub(pct) {
