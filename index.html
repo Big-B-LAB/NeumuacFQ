@@ -796,45 +796,188 @@
            HEADER — UNIFIED TOP BAR
            ============================================================ */
 
+        /* ── NEW HEADER v6: 5 zones, zero clutter ────────────────── */
         .app-header {
-            grid-column: 1 / -1;
-            grid-row: 1;
-            background: #0a1220;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            padding: 0 16px 0 0;
-            gap: 0;
-            box-shadow: 0 1px 0 rgba(41,121,255,0.1), 0 4px 16px rgba(0,0,0,0.4);
-            z-index: 100;
-            position: relative;
+            grid-column: 1 / -1; grid-row: 1;
+            background: #080f1e;
+            border-bottom: 1px solid rgba(41,121,255,0.12);
+            display: flex; align-items: center;
+            padding: 0 12px; gap: 0; height: 52px;
+            box-shadow: 0 1px 0 rgba(41,121,255,0.08), 0 4px 20px rgba(0,0,0,0.45);
+            z-index: 100; position: relative;
         }
         .app-header::after {
-            content: '';
-            position: absolute;
-            bottom: 0; left: 0; right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(41,121,255,0.3) 30%, rgba(41,121,255,0.3) 70%, transparent);
+            content:''; position:absolute; bottom:0; left:0; right:0; height:1px;
+            background: linear-gradient(90deg, transparent 0%, rgba(41,121,255,0.25) 30%, rgba(41,185,200,0.2) 70%, transparent 100%);
         }
-
+        /* ① Identity */
         .header-brand {
-            width: var(--sidebar-width);
-            min-width: var(--sidebar-width);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 0 16px;
-            border-right: 1px solid var(--border);
-            height: 100%;
-            transition: width var(--transition-slow), min-width var(--transition-slow);
-            overflow: hidden;
+            display: flex; align-items: center; gap: 8px;
+            padding: 0 14px 0 4px; flex-shrink: 0;
+            border-right: none; height: 100%;
+            overflow: visible; width: auto; min-width: 0;
         }
-
-        .sidebar-collapsed .header-brand {
-            width: var(--sidebar-collapsed);
-            min-width: var(--sidebar-collapsed);
-            padding: 0 12px;
+        .sidebar-collapsed .header-brand { padding: 0 10px 0 4px; }
+        /* Live dot */
+        .hdr-live-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: #34d399; flex-shrink: 0;
+            animation: hdrPulse 2.4s ease-in-out infinite;
+            transition: background .3s;
         }
+        .hdr-live-dot.offline { background:#f87171; animation:none; }
+        @keyframes hdrPulse {
+            0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)}
+        }
+        /* Vertical dividers */
+        .hdr-vdiv {
+            width:1px; height:26px;
+            background:rgba(99,140,210,0.14);
+            flex-shrink:0; margin:0 10px;
+        }
+        /* ② DB Pulse — segment bar */
+        .hdr-seg-zone {
+            display:flex; flex-direction:column; gap:3px;
+            padding:2px 8px; cursor:pointer; border-radius:8px;
+            transition:background .15s; flex-shrink:0;
+        }
+        .hdr-seg-zone:hover { background:rgba(41,121,255,0.06); }
+        .hdr-seg-bar {
+            height:7px; border-radius:4px;
+            display:flex; gap:1.5px; overflow:hidden; width:200px;
+        }
+        .hdr-seg {
+            transition: opacity .15s, width .9s cubic-bezier(.16,1,.3,1);
+        }
+        .hdr-seg:first-child { border-radius:4px 0 0 4px; }
+        .hdr-seg:last-child  { border-radius:0 4px 4px 4px; }
+        .hdr-seg-zone:hover .hdr-seg { opacity:.72; }
+        .hdr-seg-meta {
+            display:flex; justify-content:space-between;
+            width:200px; font-size:9px; font-family:var(--font-mono);
+        }
+        /* ③ Search pill */
+        .hdr-search {
+            display:flex; align-items:center; gap:6px;
+            background:rgba(255,255,255,0.035);
+            border:1px solid rgba(99,140,210,0.18);
+            border-radius:8px; padding:6px 11px;
+            cursor:text; color:#3a5a7a; font-size:10.5px;
+            min-width:155px; margin:0 8px;
+            transition:all .15s; font-family:var(--font-body); white-space:nowrap;
+        }
+        .hdr-search:hover {
+            border-color:rgba(41,121,255,0.35);
+            background:rgba(41,121,255,0.05); color:#5a7aaa;
+        }
+        .hdr-search kbd {
+            background:rgba(255,255,255,0.06); border-radius:3px;
+            padding:1px 5px; font-size:9.5px; font-family:var(--font-mono);
+            color:#2a4060; margin-left:auto;
+        }
+        .hdr-flex { flex:1; }
+        /* ④ Action buttons */
+        .hdr-helios {
+            display:flex; align-items:center; gap:5px;
+            padding:5px 11px; border-radius:8px;
+            border:1px solid rgba(251,191,36,0.2);
+            background:rgba(251,191,36,0.04);
+            color:#b89416; cursor:pointer; font-size:10.5px;
+            position:relative; font-family:var(--font-body);
+            transition:all .15s; white-space:nowrap;
+        }
+        .hdr-helios:hover { background:rgba(251,191,36,0.09); border-color:rgba(251,191,36,0.38); color:#d4aa20; }
+        .hdr-helios-badge {
+            position:absolute; top:-6px; right:-6px;
+            background:#f87171; color:white;
+            font-size:8.5px; font-weight:800;
+            border-radius:9px; padding:1px 5px;
+            min-width:17px; height:17px;
+            display:flex; align-items:center; justify-content:center;
+            border:2px solid #080f1e; font-family:var(--font-mono);
+        }
+        .hdr-analytics {
+            display:flex; align-items:center; gap:5px;
+            padding:5px 11px; border-radius:8px;
+            border:1px solid rgba(99,140,210,0.15);
+            background:transparent; color:#4a6a8a;
+            cursor:pointer; font-size:10.5px;
+            font-family:var(--font-body); transition:all .15s; white-space:nowrap;
+        }
+        .hdr-analytics:hover { background:rgba(41,121,255,0.07); border-color:rgba(41,121,255,0.3); color:#7aaeff; }
+        /* ⑤ Status zone */
+        .hdr-mode {
+            width:32px; height:32px; border-radius:8px;
+            border:1px solid rgba(255,255,255,0.1);
+            background:rgba(255,255,255,0.04);
+            display:flex; align-items:center; justify-content:center;
+            cursor:pointer; color:#3a5a7a; font-size:14px;
+            transition:all .2s; position:relative; flex-shrink:0;
+        }
+        .hdr-mode:hover { border-color:rgba(41,121,255,0.3); background:rgba(41,121,255,0.08); color:#7aaeff; }
+        .hdr-mode.write-active { border-color:rgba(52,211,153,0.4); background:rgba(52,211,153,0.09); color:#34d399; }
+        .hdr-mode::after {
+            content:attr(data-tip); position:absolute; bottom:-30px; left:50%;
+            transform:translateX(-50%);
+            background:#0d1526; border:1px solid rgba(99,140,210,0.2);
+            border-radius:5px; padding:3px 8px; font-size:9.5px; color:#7a9cc4;
+            white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .15s;
+            font-family:var(--font-body); z-index:200;
+        }
+        .hdr-mode:hover::after { opacity:1; }
+        .hdr-inst {
+            display:flex; align-items:center; gap:5px;
+            padding:5px 10px; border-radius:8px;
+            border:1px solid rgba(41,121,255,0.18);
+            background:rgba(41,121,255,0.07);
+            color:#5a8adf; cursor:pointer; font-size:10.5px; font-weight:500;
+            font-family:var(--font-body); transition:all .15s; white-space:nowrap;
+            max-width:110px; overflow:hidden; text-overflow:ellipsis;
+        }
+        .hdr-inst:hover { background:rgba(41,121,255,0.13); border-color:rgba(41,121,255,0.32); color:#7aaeff; }
+        .hdr-more {
+            width:32px; height:32px; border-radius:8px;
+            border:1px solid rgba(99,140,210,0.15);
+            background:transparent;
+            display:flex; align-items:center; justify-content:center;
+            cursor:pointer; color:#3a5070; font-size:15px; flex-shrink:0;
+            transition:all .15s; position:relative;
+        }
+        .hdr-more:hover { background:rgba(255,255,255,0.05); border-color:rgba(99,140,210,0.3); color:#7a9cc4; }
+        /* ··· MENU */
+        .hdr-more-menu {
+            position:absolute; top:calc(100% + 8px); right:0;
+            width:268px; background:#08101f;
+            border:1px solid rgba(99,140,210,0.2); border-radius:12px;
+            box-shadow:0 24px 56px rgba(0,0,5,0.7), 0 0 0 1px rgba(41,121,255,0.06);
+            z-index:600; overflow:hidden;
+            transform-origin:top right;
+            animation:menuOpen .18s cubic-bezier(.16,1,.3,1) both;
+        }
+        @keyframes menuOpen { from{opacity:0;transform:scale(.95) translateY(-4px)} to{opacity:1;transform:scale(1) translateY(0)} }
+        .hdr-menu-head { padding:10px 14px 8px; border-bottom:1px solid rgba(99,140,210,0.1); font-size:11px; color:#3a5a7a; font-weight:500; font-family:var(--font-body); }
+        .hdr-menu-sec  { padding:7px 14px 3px; font-size:9px; font-weight:700; color:#1e3550; text-transform:uppercase; letter-spacing:.1em; font-family:var(--font-mono); }
+        .hdr-menu-item { display:flex; align-items:center; gap:9px; padding:7px 14px; cursor:pointer; transition:background .1s; font-family:var(--font-body); }
+        .hdr-menu-item:hover { background:rgba(41,121,255,0.07); }
+        .hdr-menu-icon { width:24px; height:24px; border-radius:6px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:12px; }
+        .hdr-menu-label { flex:1; }
+        .hdr-menu-title { font-size:11.5px; color:#c2d4ea; }
+        .hdr-menu-sub   { font-size:9.5px; color:#2a4060; margin-top:1px; }
+        .hdr-menu-kbd   { font-size:9.5px; color:#1e3550; background:rgba(255,255,255,0.05); border-radius:3px; padding:1px 5px; font-family:var(--font-mono); flex-shrink:0; }
+        .hdr-menu-div   { height:1px; background:rgba(99,140,210,0.1); margin:3px 0; }
+        /* Light theme */
+        html[data-theme="light"] .app-header { background:#ffffff; border-bottom:1px solid rgba(60,80,120,0.13); box-shadow:0 1px 0 rgba(60,80,120,0.08),0 2px 8px rgba(0,0,0,0.06); }
+        html[data-theme="light"] .hdr-vdiv   { background:rgba(60,80,120,0.12); }
+        html[data-theme="light"] .hdr-search { background:rgba(0,0,0,0.03); border-color:rgba(60,80,120,0.18); color:#6b7280; }
+        html[data-theme="light"] .hdr-mode   { border-color:rgba(60,80,120,0.2); background:rgba(0,0,0,0.03); color:#6b7280; }
+        html[data-theme="light"] .hdr-inst   { border-color:rgba(41,121,255,0.2); background:rgba(41,121,255,0.06); color:#2563eb; }
+        html[data-theme="light"] .hdr-more   { border-color:rgba(60,80,120,0.18); color:#9ca3af; }
+        html[data-theme="light"] .hdr-analytics { border-color:rgba(60,80,120,0.18); color:#6b7280; }
+        html[data-theme="light"] .hdr-more-menu { background:#ffffff; border-color:rgba(60,80,120,0.18); box-shadow:0 12px 32px rgba(0,0,0,0.15); }
+        html[data-theme="light"] .hdr-menu-title { color:#1f2937; }
+        html[data-theme="light"] .hdr-menu-sub   { color:#9ca3af; }
+        html[data-theme="light"] .hdr-menu-item:hover { background:rgba(41,121,255,0.05); }
+        html[data-theme="light"] .hdr-live-dot { background:#10b981; }
 
         /* ---- Logo placements ---- */
         .brand-logo-pill {
@@ -930,44 +1073,90 @@
             margin-left: 8px;
         }
 
-        .hstat {
+        /* Legacy hstat — kept for backward compat with any remaining refs */
+        .hstat { display: flex; flex-direction: column; align-items: flex-start; padding: 0 16px; }
+        .hstat-value { font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--text-primary); }
+        .hstat-label { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; }
+        .hstat-divider { display: none; }
+
+        /* ── Clinical Pulse Bar ───────────────────────────────────────────── */
+        .header-pulse {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            flex: 1;
+            margin: 0 8px;
+        }
+
+        .hpulse-block {
             display: flex;
             flex-direction: column;
-            align-items: flex-start;
-            padding: 0 20px;
-            position: relative;
+            padding: 4px 18px;
+            gap: 1px;
+            transition: background .15s;
+            border-radius: 8px;
+            min-width: 0;
         }
+        .hpulse-block:hover { background: var(--surface-hover); }
 
-        .hstat + .hstat::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 50%;
-            transform: translateY(-50%);
+        .hpulse-sep {
             width: 1px;
-            height: 24px;
+            height: 32px;
             background: var(--border);
+            flex-shrink: 0;
         }
 
-        .hstat-value {
+        .hpulse-num {
             font-family: var(--font-mono);
-            font-size: 16px;
-            font-weight: 600;
+            font-size: 17px;
+            font-weight: 700;
+            line-height: 1;
             color: var(--text-primary);
-            line-height: 1.2;
         }
 
-        .hstat-label {
-            font-size: 11px;
-            font-weight: 500;
+        .hpulse-unit {
+            font-size: 9.5px;
+            font-weight: 600;
             color: var(--text-tertiary);
             text-transform: uppercase;
-            letter-spacing: 0.06em;
+            letter-spacing: 0.07em;
+            white-space: nowrap;
         }
 
-        .hstat-divider {
-            display: none;
+        .hpulse-prog {
+            height: 2px;
+            background: var(--border);
+            border-radius: 2px;
+            margin-top: 4px;
+            overflow: hidden;
+            width: 100%;
+            max-width: 90px;
         }
+
+        .hpulse-prog-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width .8s cubic-bezier(.16,1,.3,1);
+        }
+
+        .hpulse-sub {
+            font-size: 9.5px;
+            color: var(--text-quaternary);
+            white-space: nowrap;
+        }
+
+        .hpulse-urgent-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--warning);
+            flex-shrink: 0;
+            animation: ribbonPulse 2s ease-in-out infinite;
+        }
+
+        /* Light theme adaptation */
+        html[data-theme="light"] .hpulse-block:hover { background: rgba(41,121,255,0.06); }
+        html[data-theme="light"] .hpulse-sep { background: rgba(60,80,120,0.15); }
 
         .header-actions {
             display: flex;
@@ -4942,122 +5131,184 @@
         </div>
 
         <div class="header-content">
-            <div class="header-stats" id="headerStats">
-                <div class="hstat">
-                    <span class="hstat-value" id="hstatTotal">—</span>
-                    <span class="hstat-label">Variants</span>
+
+            <!-- ② DB Segment Bar -->
+            <div class="hdr-seg-zone" id="hdrSegZone"
+                 onclick="hdrSegClick(event)"
+                 title="Database completeness — click any segment to filter">
+                <div class="hdr-seg-bar">
+                    <div class="hdr-seg" id="hdrSegDone"  style="background:#2979ff;width:0%"></div>
+                    <div class="hdr-seg" id="hdrSegMiss"  style="background:#f59e0b;width:0%"></div>
+                    <div class="hdr-seg" id="hdrSegCrit"  style="background:#f87171;width:0%;min-width:0px"></div>
                 </div>
-                <div class="hstat">
-                    <span class="hstat-value" style="color: var(--class-iii)" id="hstatResponsive">—</span>
-                    <span class="hstat-label">ETI Responsive</span>
-                </div>
-                <div class="hstat">
-                    <span class="hstat-value" style="color: var(--warning)" id="hstatMissing">—</span>
-                    <span class="hstat-label">Missing Data</span>
+                <div class="hdr-seg-meta">
+                    <span id="hdrSegLabel" style="color:#2979ff">Loading…</span>
+                    <span id="hstatTotal" style="color:#2a4060">—</span>
                 </div>
             </div>
 
-            <div class="header-actions">
-                <!-- Theme toggle -->
-                <button id="themeToggleBtn" onclick="toggleTheme()" title="Toggle light / dark theme">
-                    <i class="fas fa-moon theme-icon" id="themeIcon"></i>
-                    <span id="themeLabel">Light</span>
+            <div class="hdr-vdiv"></div>
+
+            <!-- ③ Search pill -->
+            <div class="hdr-search" onclick="kbOpenCommandPalette()" role="button" aria-label="Search variants">
+                <i class="fas fa-search" style="font-size:10px" aria-hidden="true"></i>
+                <span>Search variants…</span>
+                <kbd>⌘K</kbd>
+            </div>
+
+            <div class="hdr-flex"></div>
+
+            <!-- ④ Actions cluster -->
+            <div style="display:flex;align-items:center;gap:5px;">
+
+                <!-- Helios -->
+                <button class="hdr-helios" onclick="openHelios()" id="heliosBtn" title="Helios — AI evidence queue">
+                    <span style="font-size:11px">✦</span>
+                    <span>Helios</span>
+                    <span id="heliosBadge" style="display:none;" class="hdr-helios-badge"></span>
                 </button>
-                <!-- Audit trail button -->
-                <button onclick="showAuditTrail()" title="View audit trail — all clinical edits and imports"
-                    style="display:flex;align-items:center;gap:5px;height:36px;padding:0 10px;
-                           background:rgba(255,255,255,0.04);border:1px solid rgba(99,140,210,0.18);
-                           border-radius:8px;color:var(--text-tertiary);font-size:11px;cursor:pointer;
-                           font-family:var(--font-body);transition:all 150ms;"
-                    onmouseover="this.style.background='rgba(41,121,255,0.08)';this.style.borderColor='rgba(41,121,255,0.3)';this.style.color='var(--text-primary)'"
-                    onmouseout="this.style.background='rgba(255,255,255,0.04)';this.style.borderColor='rgba(99,140,210,0.18)';this.style.color='var(--text-tertiary)'">
-                    <i class="fas fa-shield-alt" style="font-size:11px;"></i>
-                    <span>Audit</span>
-                </button>
-                <!-- Connection status indicator -->
-                <div style="display:flex;align-items:center;gap:5px;padding:0 8px;" title="Database connection status">
-                    <div id="connStatusDot" style="width:7px;height:7px;border-radius:50%;background:#34d399;transition:background .3s;flex-shrink:0;"></div>
-                    <span id="connStatusLabel" style="font-size: 11px;font-family:var(--font-mono);color:#5a7aaa;min-width:40px;"></span>
-                </div>
-                <!-- Write mode indicator -->
-                <button id="writeModeBtn" onclick="requestWriteMode()" title="Enable write mode" style="display:flex;align-items:center;gap:6px;height:36px;padding:0 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#5a7aaa;font-size:12px;cursor:pointer;transition:all .2s;font-family:'IBM Plex Mono',monospace;">
-                    <i class="fas fa-lock" id="writeModeIcon" style="font-size: 11px;"></i>
-                    <span id="writeModeBtnLabel">Read only</span>
-                </button>
-                <span class="hospital-badge" id="hospitalBadge" onclick="changeHospital()" title="Click to change institution" style="display:none;">
-                    <i class="fas fa-hospital" style="font-size: 11px;"></i>
-                    <span id="hospitalBadgeText">—</span>
-                </span>
-                <button onclick="helixHistoryBack()" id="helixHistoryBack" class="btn btn-ghost" title="No history" style="padding:0 8px;height:36px;opacity:0.3;transition:opacity .2s;">
-                    <i class="fas fa-arrow-left" style="font-size:12px;"></i>
-                </button>
-                <button onclick="helixHistoryForward()" id="helixHistoryFwd" class="btn btn-ghost" title="Nothing ahead" style="padding:0 8px;height:36px;opacity:0.3;transition:opacity .2s;">
-                    <i class="fas fa-arrow-right" style="font-size:12px;"></i>
-                </button>
-                <button onclick="kbOpenCommandPalette()" class="btn btn-ghost" title="Command palette (⌘K)" style="padding:0 10px;height:36px;gap:5px;">
-                    <i class="fas fa-terminal" style="font-size:11px;"></i>
-                    <kbd style="font-size: 11px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.06);color:var(--text-tertiary);font-family:var(--font-mono);">⌘K</kbd>
-                </button>
-                <button onclick="helixToggleShortcutHelp()" class="btn btn-ghost" title="Keyboard shortcuts (?)" style="padding:0 8px;height:36px;">
-                    <kbd style="font-size:11px;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(99,140,210,0.2);color:var(--text-tertiary);font-family:var(--font-mono);">?</kbd>
-                </button>
-                <button onclick="showDashboard()" class="btn btn-ghost" title="Analytics" style="font-size:13px;">
-                    <i class="fas fa-chart-bar"></i>
+
+                <!-- Analytics -->
+                <button class="hdr-analytics" onclick="showDashboard()" title="Analytics & search intelligence">
+                    <i class="fas fa-chart-bar" style="font-size:10px" aria-hidden="true"></i>
                     <span>Analytics</span>
                 </button>
-                <div style="position:relative;display:inline-block;" id="exportMenuWrap">
-                    <button onclick="toggleExportMenu()" class="btn btn-ghost" title="Export" style="font-size:13px;">
-                        <i class="fas fa-download"></i>
-                        <span>Export</span>
-                        <i class="fas fa-chevron-down" style="font-size: 11px;margin-left:2px;opacity:.6;"></i>
+
+            </div>
+
+            <div class="hdr-vdiv"></div>
+
+            <!-- ⑤ Status zone -->
+            <div style="display:flex;align-items:center;gap:5px;">
+
+                <!-- Mode — icon only, tooltip on hover -->
+                <button class="hdr-mode" id="writeModeBtn"
+                        onclick="requestWriteMode()"
+                        data-tip="Read only — click to unlock"
+                        aria-label="Write mode — currently read only">
+                    <i class="fas fa-lock" id="writeModeIcon" aria-hidden="true"></i>
+                </button>
+
+                <!-- Institution badge -->
+                <button class="hdr-inst" id="hospitalBadge"
+                        onclick="changeHospital()"
+                        title="Institution — click to change"
+                        style="display:none;">
+                    <i class="fas fa-hospital" style="font-size:10px" aria-hidden="true"></i>
+                    <span id="hospitalBadgeText">—</span>
+                </button>
+
+                <!-- ··· More menu -->
+                <div style="position:relative;">
+                    <button class="hdr-more" id="hdrMoreBtn"
+                            onclick="hdrToggleMenu()"
+                            aria-label="More options"
+                            title="More options">
+                        <i class="fas fa-ellipsis-h" aria-hidden="true"></i>
                     </button>
-                    <div id="exportMenu" style="display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:500;background:#0d1526;border:1px solid rgba(99,140,210,0.22);border-radius:10px;box-shadow:0 12px 32px rgba(0,5,20,0.7);min-width:230px;overflow:hidden;">
-                        <div style="padding:8px 14px 6px;font-size: 11px;font-weight:700;letter-spacing:.12em;color:rgba(154,184,224,0.55);text-transform:uppercase;border-bottom:1px solid rgba(99,140,210,0.1);">Export options</div>
-                        <button onclick="exportReport();toggleExportMenu()" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 16px;background:none;border:none;color:#f0f6ff;font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;cursor:pointer;text-align:left;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background=''">
-                            <i class="fas fa-table" style="color:#60a5fa;width:14px;"></i>
-                            <span>Quick CSV (summary)</span>
-                        </button>
-                        <button onclick="exportFullReport();toggleExportMenu()" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 16px;background:none;border:none;color:#f0f6ff;font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;cursor:pointer;text-align:left;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background=''">
-                            <i class="fas fa-file-csv" style="color:#34d399;width:14px;"></i>
-                            <span>Full CSV (all fields)</span>
-                        </button>
-                        <div style="height:1px;background:rgba(99,140,210,0.1);margin:2px 0;"></div>
-                        <button onclick="exportClinicalReport('single');toggleExportMenu()" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 16px;background:none;border:none;color:#f0f6ff;font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;cursor:pointer;text-align:left;" onmouseover="this.style.background='rgba(41,121,255,0.08)'" onmouseout="this.style.background=''">
-                            <i class="fas fa-file-medical" style="color:#2979ff;width:14px;"></i>
-                            <div>
-                                <div>Clinical PDF — selected variant</div>
-                                <div style="font-size: 11px;color:#5a7aaa;margin-top:1px;">Print-ready lab-style report</div>
+
+                    <!-- The menu -->
+                    <div id="hdrMoreMenu" class="hdr-more-menu" style="display:none;">
+                        <div class="hdr-menu-head">Options</div>
+
+                        <div class="hdr-menu-sec">Actions</div>
+                        <div class="hdr-menu-item" onclick="showImportModal();hdrCloseMenu()">
+                            <div class="hdr-menu-icon" style="background:rgba(41,121,255,.12);color:#5a9eff">
+                                <i class="fas fa-plus" aria-hidden="true"></i>
                             </div>
-                        </button>
-                        <button onclick="exportClinicalReport('all');toggleExportMenu()" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 16px;background:none;border:none;color:#f0f6ff;font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;cursor:pointer;text-align:left;" onmouseover="this.style.background='rgba(41,121,255,0.08)'" onmouseout="this.style.background=''">
-                            <i class="fas fa-file-medical-alt" style="color:#60a5fa;width:14px;"></i>
-                            <div>
-                                <div>Clinical PDF — batch (all classified)</div>
-                                <div style="font-size: 11px;color:#5a7aaa;margin-top:1px;">One page per variant, for MDT</div>
+                            <div class="hdr-menu-label">
+                                <div class="hdr-menu-title">Add variant</div>
                             </div>
-                        </button>
+                            <span class="hdr-menu-kbd">⌘N</span>
+                        </div>
+                        <div class="hdr-menu-item" onclick="hdrMenuExport()">
+                            <div class="hdr-menu-icon" style="background:rgba(52,211,153,.1);color:#34d399">
+                                <i class="fas fa-download" aria-hidden="true"></i>
+                            </div>
+                            <div class="hdr-menu-label">
+                                <div class="hdr-menu-title">Export</div>
+                                <div class="hdr-menu-sub">CSV, PDF, IRB package</div>
+                            </div>
+                            <span class="hdr-menu-kbd">⌘E</span>
+                        </div>
+
+                        <div class="hdr-menu-div"></div>
+                        <div class="hdr-menu-sec">Tools</div>
+                        <div class="hdr-menu-item" onclick="openCompoundGenotypeCalculator();hdrCloseMenu()">
+                            <div class="hdr-menu-icon" style="background:rgba(52,211,153,.1);color:#34d399">
+                                <i class="fas fa-calculator" aria-hidden="true"></i>
+                            </div>
+                            <div class="hdr-menu-label">
+                                <div class="hdr-menu-title">Genotype calculator</div>
+                                <div class="hdr-menu-sub">Compound heterozygote prediction</div>
+                            </div>
+                        </div>
+                        <div class="hdr-menu-item" onclick="showDashboard('geo');hdrCloseMenu()">
+                            <div class="hdr-menu-icon" style="background:rgba(96,165,250,.1);color:#60a5fa">
+                                <i class="fas fa-globe" aria-hidden="true"></i>
+                            </div>
+                            <div class="hdr-menu-label">
+                                <div class="hdr-menu-title">Geography map</div>
+                                <div class="hdr-menu-sub">Search origin &amp; CF centres</div>
+                            </div>
+                        </div>
+                        <div class="hdr-menu-item" onclick="helixHistoryBack();hdrCloseMenu()">
+                            <div class="hdr-menu-icon" style="background:rgba(148,163,184,.07);color:#64748b">
+                                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                            </div>
+                            <div class="hdr-menu-label">
+                                <div class="hdr-menu-title">History back</div>
+                            </div>
+                            <span class="hdr-menu-kbd">⌘[</span>
+                        </div>
+
+                        <div class="hdr-menu-div"></div>
+                        <div class="hdr-menu-sec">Settings</div>
+                        <div class="hdr-menu-item" onclick="toggleTheme();hdrCloseMenu()">
+                            <div class="hdr-menu-icon" style="background:rgba(148,163,184,.07);color:#64748b">
+                                <i class="fas fa-moon" id="menuThemeIcon" aria-hidden="true"></i>
+                            </div>
+                            <div class="hdr-menu-label">
+                                <div class="hdr-menu-title" id="menuThemeLabel">Light mode</div>
+                            </div>
+                            <span class="hdr-menu-kbd">⌘⇧L</span>
+                        </div>
+                        <div class="hdr-menu-item" onclick="showAuditTrail();hdrCloseMenu()">
+                            <div class="hdr-menu-icon" style="background:rgba(148,163,184,.07);color:#64748b">
+                                <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                            </div>
+                            <div class="hdr-menu-label">
+                                <div class="hdr-menu-title">Audit trail</div>
+                                <div class="hdr-menu-sub">All clinical edits</div>
+                            </div>
+                        </div>
+                        <div class="hdr-menu-item" onclick="helixToggleShortcutHelp();hdrCloseMenu()">
+                            <div class="hdr-menu-icon" style="background:rgba(148,163,184,.07);color:#64748b">
+                                <i class="fas fa-keyboard" aria-hidden="true"></i>
+                            </div>
+                            <div class="hdr-menu-label">
+                                <div class="hdr-menu-title">Keyboard shortcuts</div>
+                            </div>
+                            <span class="hdr-menu-kbd">?</span>
+                        </div>
+
+                        <!-- Connection status at bottom -->
+                        <div class="hdr-menu-div"></div>
+                        <div style="padding:8px 14px;display:flex;align-items:center;gap:7px;">
+                            <div id="connStatusDot" style="width:6px;height:6px;border-radius:50%;background:#34d399;flex-shrink:0;"></div>
+                            <span id="connStatusLabel" style="font-size:10px;color:#2a4060;font-family:var(--font-mono);">Live</span>
+                        </div>
                     </div>
                 </div>
-                <!-- COMPOUND GENOTYPE CALCULATOR -->
-                <button onclick="openCompoundGenotypeCalculator()" class="btn btn-ghost"
-                        title="Compound genotype calculator — enter two alleles, get clinical prediction"
-                        style="border-color:rgba(52,211,153,0.3);color:#34d399;">
-                    <i class="fas fa-calculator" style="font-size:12px;"></i>
-                    <span>Genotype</span>
-                </button>
-                <!-- ☀ HELIOS BOT BUTTON -->
-                <button onclick="openHelios()" class="btn btn-ghost" id="heliosBtn" title="Helios — AI Evidence Bot" style="position:relative;border-color:rgba(251,191,36,0.3);color:#fbbf24;">
-                    <i class="fas fa-sun" style="font-size:13px;"></i>
-                    <span>Helios</span>
-                    <span id="heliosBadge" style="display:none;position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;border-radius:9px;background:#f87171;color:white;font-size: 11px;font-weight:800;font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid #0a1220;"></span>
-                </button>
-                <button onclick="showImportModal()" class="btn btn-primary" style="height:42px;padding:0 22px;font-size:14px;">
-                    <i class="fas fa-plus"></i>
-                    <span>Add Variant</span>
-                </button>
+
             </div>
+
         </div>
     </header>
+
+    <!-- Hidden stat carriers for backward compat -->
+    <span id="hstatResponsive" style="display:none"></span>
+    <span id="hstatMissing" style="display:none"></span>
 
     <!-- Dev notice — spans full width, shows once -->
     <div class="dev-notice" id="devNotice" style="grid-column: 1 / -1;">
@@ -5237,6 +5488,53 @@
                 <div id="detailEmptyQuickLinks"style="display:none"></div>
 
                 <div id="homeDashboard" style="width:100%;max-width:1020px;padding:0 8px;text-align:left;">
+
+                    <!-- Clinical context greeting bar -->
+                    <div id="homeGreetingBar" style="
+                        display:flex;align-items:center;justify-content:space-between;
+                        padding:10px 16px;margin-bottom:14px;
+                        background:var(--surface);border:1px solid var(--border);
+                        border-radius:10px;gap:16px;
+                        animation:v5fadeUp .3s ease both;">
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <div id="homeGreetingIcon" style="
+                                width:32px;height:32px;border-radius:8px;
+                                background:linear-gradient(135deg,rgba(41,121,255,0.15),rgba(41,185,200,0.1));
+                                border:1px solid rgba(41,121,255,0.2);
+                                display:flex;align-items:center;justify-content:center;
+                                font-size:14px;flex-shrink:0;"></div>
+                            <div>
+                                <div style="font-size:12.5px;font-weight:600;color:var(--text-primary);" id="homeGreetingMsg">Welcome to NeumuacFQ</div>
+                                <div style="font-size:10.5px;color:var(--text-tertiary);" id="homeGreetingDate"></div>
+                            </div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;" id="homeQuickActions">
+                            <button onclick="filterVariants('missing')" style="
+                                font-size:10.5px;padding:5px 12px;border-radius:6px;cursor:pointer;
+                                background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);
+                                color:#fbbf24;font-weight:600;font-family:var(--font-body);
+                                transition:all .15s;" id="homeActionCuration">
+                                <i class="fas fa-layer-group" style="font-size:9px;margin-right:4px;"></i>
+                                Curation queue
+                            </button>
+                            <button onclick="openHelios()" style="
+                                font-size:10.5px;padding:5px 12px;border-radius:6px;cursor:pointer;
+                                background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.15);
+                                color:#f59e0b;font-weight:600;font-family:var(--font-body);
+                                transition:all .15s;">
+                                <span style="font-size:10px;">✦</span>
+                                Helios inbox
+                            </button>
+                            <button onclick="showDashboard('clinical')" style="
+                                font-size:10.5px;padding:5px 12px;border-radius:6px;cursor:pointer;
+                                background:rgba(41,121,255,0.07);border:1px solid rgba(41,121,255,0.18);
+                                color:#60a5fa;font-weight:600;font-family:var(--font-body);
+                                transition:all .15s;">
+                                <i class="fas fa-chart-line" style="font-size:9px;margin-right:4px;"></i>
+                                Analytics
+                            </button>
+                        </div>
+                    </div>
 
                     <!-- v5: hero banner injected here by renderHomeDashboard() -->
                     <div id="v5HeroBanner"></div>
@@ -6420,7 +6718,7 @@ async function loadClassRules() {
         const rules = await res.json();
         rules.forEach(r => { CLASS_RULES_CACHE[r.cftr_class] = r; });
         console.log('[NeumuacFQ] Class rules loaded from DB:', Object.keys(CLASS_RULES_CACHE).length);
-    } catch(e) { console.warn('[NeumuacFQ] Class rules fallback to hardcoded:', e.message); }
+    } catch(e) { /* Class rules fallback to hardcoded — requires cftr_class_rules table */ }
 }
 
 function getClassDescription(cftrClass) {
@@ -7327,16 +7625,17 @@ function updateWriteModeBtn() {
         btn.style.background = 'rgba(41,121,255,0.12)';
         btn.style.borderColor = 'rgba(41,121,255,0.4)';
         btn.style.color = '#60a5fa';
-        if (icon) icon.className = 'fas fa-unlock';
-        if (label) label.textContent = timeStr;
-        btn.title = 'Write mode active — click to lock';
+        if (icon) icon.className = 'fas fa-lock-open';
+        btn.classList.add('write-active');
+        btn.setAttribute('data-tip', `Write mode — ${timeStr} remaining`);
+        btn.setAttribute('aria-label', `Write mode active — ${timeStr} remaining. Click to lock.`);
+        btn.title = `Write mode active — ${timeStr} remaining`;
     } else {
-        btn.style.background = 'rgba(255,255,255,0.04)';
-        btn.style.borderColor = 'rgba(255,255,255,0.1)';
-        btn.style.color = '#5a7aaa';
+        btn.classList.remove('write-active');
         if (icon) icon.className = 'fas fa-lock';
-        if (label) label.textContent = 'Read only';
-        btn.title = 'Enable write mode';
+        btn.setAttribute('data-tip', 'Read only — click to unlock');
+        btn.setAttribute('aria-label', 'Read only — click to enter write mode');
+        btn.title = 'Read only — click to unlock';
     }
 }
 
@@ -7448,7 +7747,7 @@ async function loadVariants() {
         helixMaybeSaveSnapshot().catch(() => {});
 
     } catch (err) {
-        console.error('Load failed:', err);
+        console.warn('[NeumuacFQ] Load failed (attempting cache fallback):', err?.message || err);
 
         // ── Offline fallback ──
         // Try serving from IndexedDB cache before showing error
@@ -9544,11 +9843,57 @@ function calculateMasterStats() {
 }
 
 function updateHeaderStats() {
-    const s = STATE.masterStats;
+    const s       = STATE.masterStats;
+    const total   = s.total || 0;
     const missing = STATE.variants.filter(hasMissingData).length;
-    setText('hstatTotal', s.total.toLocaleString());
+    const critical = STATE.variants.filter(v => {
+        try { return calculateGapScore(v).gapLevel === 'CRITICAL'; } catch(e) { return false; }
+    }).length;
+    const done     = total - missing;
+    const donePct  = total ? done    / total * 100 : 0;
+    const missPct  = total ? (missing - critical) / total * 100 : 0;
+    const critPct  = total ? critical / total * 100 : 0;
+
+    // ── Segment bar ──
+    const segDone = document.getElementById('hdrSegDone');
+    const segMiss = document.getElementById('hdrSegMiss');
+    const segCrit = document.getElementById('hdrSegCrit');
+    if (segDone) segDone.style.width = donePct.toFixed(1) + '%';
+    if (segMiss) segMiss.style.width = missPct.toFixed(1) + '%';
+    if (segCrit) { segCrit.style.width = Math.max(critPct, critical > 0 ? 1.5 : 0).toFixed(1) + '%'; }
+
+    // Segment label — dynamic based on urgency
+    const segLabel = document.getElementById('hdrSegLabel');
+    if (segLabel) {
+        if (critical > 0) {
+            segLabel.textContent = critical + ' critical';
+            segLabel.style.color = '#f87171';
+        } else if (missing > 0) {
+            segLabel.textContent = Math.round(donePct) + '% complete';
+            segLabel.style.color = '#2979ff';
+        } else {
+            segLabel.textContent = '✓ Complete';
+            segLabel.style.color = '#34d399';
+        }
+    }
+
+    // Total count
+    setText('hstatTotal', total.toLocaleString() + ' variants');
+
+    // Backward compat IDs used elsewhere in the app
     setText('hstatResponsive', s.responsive.toLocaleString());
-    setText('hstatMissing', missing.toLocaleString());
+    setText('hstatMissing',    missing.toLocaleString());
+
+    // Segment bar tooltip data attributes (shown on hover via title)
+    const zone = document.getElementById('hdrSegZone');
+    if (zone) zone.title =
+        `${done.toLocaleString()} complete (${Math.round(donePct)}%)
+` +
+        `${(missing-critical).toLocaleString()} need curation
+` +
+        `${critical} critical — click to resolve
+` +
+        `${s.responsive.toLocaleString()} ETI eligible`;
 }
 
 function updateFilterChips() {
@@ -10185,6 +10530,51 @@ function renderHomeDashboard() {
     if (!STATE || !Array.isArray(STATE.variants)) return;   /* guard: called before init */
     var total   = STATE.variants.length;
 
+    /* ── GREETING BAR ── */
+    (function populateGreeting() {
+        var hr   = new Date().getHours();
+        var greeting = hr < 5 ? 'Working late' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+        var icon = hr < 5 ? '🌙' : hr < 12 ? '☀️' : hr < 18 ? '🏥' : '🌆';
+        var institution = STATE.searchIntelligence?.hospital;
+        var who = institution && institution !== 'Anonymous'
+            ? ', ' + institution.split('—')[0].trim().split('(')[0].trim()
+            : '';
+        var greetEl = document.getElementById('homeGreetingMsg');
+        if (greetEl) greetEl.textContent = greeting + who;
+        var iconEl = document.getElementById('homeGreetingIcon');
+        if (iconEl) iconEl.textContent = icon;
+        var dateEl = document.getElementById('homeGreetingDate');
+        if (dateEl) {
+            var now = new Date();
+            var dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            var monNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            dateEl.textContent = dayNames[now.getDay()] + ' ' + now.getDate() + ' ' + monNames[now.getMonth()] + ' ' + now.getFullYear()
+                + ' · ' + now.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+        }
+        /* Update date every minute */
+        if (!window._greetingTimer) {
+            window._greetingTimer = setInterval(function() {
+                var d = new Date();
+                var mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                var el = document.getElementById('homeGreetingDate');
+                if (el) el.textContent = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()]
+                    + ' ' + d.getDate() + ' ' + mo[d.getMonth()] + ' ' + d.getFullYear()
+                    + ' · ' + d.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+            }, 60000);
+        }
+
+        /* Colour the curation action button by urgency */
+        var critCount2 = STATE.variants.filter(function(v){ try{return calculateGapScore(v).gapLevel==='CRITICAL';}catch(e){return false;} }).length;
+        var actionBtn = document.getElementById('homeActionCuration');
+        if (actionBtn && critCount2 > 0) {
+            actionBtn.style.background = 'rgba(248,113,113,0.1)';
+            actionBtn.style.borderColor = 'rgba(248,113,113,0.25)';
+            actionBtn.style.color = '#f87171';
+            actionBtn.innerHTML = '<i class="fas fa-exclamation-circle" style="font-size:9px;margin-right:4px;"></i>'
+                + critCount2 + ' critical — resolve now';
+        }
+    })();
+
     /* ── KPI STRIP ── */
     var kpiEl = document.getElementById('homeKpiStrip');
     if (kpiEl) {
@@ -10262,6 +10652,18 @@ function renderHomeDashboard() {
             animNum(document.getElementById('v5KpiEti'),  etiCount,     900, 80);
             animNum(document.getElementById('v5KpiMiss'), missingCount, 1000, 160);
             animNum(document.getElementById('v5KpiDone'), completeCount,1100, 240);
+
+            /* ETI percentage badge */
+            var etiPctEl = document.getElementById('v5KpiEtiPct');
+            if (etiPctEl) etiPctEl.textContent = etiPct + '%';
+
+            /* Critical gap bar: shows % of total that are critical */
+            var critPct2 = total ? Math.round(critCount / total * 1000) / 10 : 0;
+            var critBar = document.getElementById('v5KpiCritBar');
+            if (critBar) { setTimeout(function(){ critBar.style.width = critPct2 + '%'; }, 200); }
+            var critSub = document.getElementById('v5KpiCritSub');
+            if (critSub) critSub.textContent = critPct2 + '% of ' + total.toLocaleString() + ' variants';
+
             /* Progress bars */
             [
                 { id: 'v5BarEti',  pct: etiPct  },
@@ -10271,6 +10673,12 @@ function renderHomeDashboard() {
                 var el = document.getElementById(b.id);
                 if (el) el.style.width = b.pct + '%';
             });
+
+            /* Animate header pulse bars too */
+            var hCompFill = document.getElementById('hpulseCompFill');
+            var hEtiFill  = document.getElementById('hpulseEtiFill');
+            if (hCompFill) hCompFill.style.width = donePct + '%';
+            if (hEtiFill)  hEtiFill.style.width  = etiPct  + '%';
         }, 300);
     }
 
@@ -13654,23 +14062,49 @@ function buildExportMenu() {
 }
 
 function toggleExportMenu() {
-    const menu = document.getElementById('exportMenu');
-    if (!menu) return;
-    const isOpen = menu.style.display !== 'none';
-    menu.style.display = isOpen ? 'none' : 'block';
-    if (!isOpen) {
-        // Close on outside click
-        const handler = (e) => {
-            // Don't close if clicking Helios btn — let openHelios() handle its own open
-            if (e.target.closest('#heliosBtn')) { return; }
-            if (!document.getElementById('exportMenuWrap')?.contains(e.target)) {
-                menu.style.display = 'none';
-                document.removeEventListener('click', handler);
-            }
-        };
-        setTimeout(() => document.addEventListener('click', handler), 10);
-    }
+    // Export panel — shown as a floating panel near ··· button
+    // since the old inline dropdown is no longer in the header
+    let panel = document.getElementById('floatingExportPanel');
+    if (panel) { panel.remove(); return; }
+
+    panel = document.createElement('div');
+    panel.id = 'floatingExportPanel';
+    panel.style.cssText = 'position:fixed;top:64px;right:12px;z-index:600;' +
+        'background:#08101f;border:1px solid rgba(99,140,210,.22);border-radius:12px;' +
+        'box-shadow:0 24px 56px rgba(0,0,5,.7);min-width:240px;overflow:hidden;' +
+        'animation:menuOpen .18s cubic-bezier(.16,1,.3,1) both;';
+    panel.innerHTML = `
+        <div style="padding:10px 14px 7px;border-bottom:1px solid rgba(99,140,210,.1);font-size:11px;color:#3a5a7a;font-weight:500;font-family:var(--font-body);">Export options</div>
+        <div class="hdr-menu-item" onclick="exportReport();document.getElementById('floatingExportPanel')?.remove()">
+            <div class="hdr-menu-icon" style="background:rgba(96,165,250,.1);color:#60a5fa"><i class="fas fa-table"></i></div>
+            <div class="hdr-menu-label"><div class="hdr-menu-title">Quick CSV</div><div class="hdr-menu-sub">Summary fields</div></div>
+        </div>
+        <div class="hdr-menu-item" onclick="exportFullReport();document.getElementById('floatingExportPanel')?.remove()">
+            <div class="hdr-menu-icon" style="background:rgba(52,211,153,.1);color:#34d399"><i class="fas fa-file-csv"></i></div>
+            <div class="hdr-menu-label"><div class="hdr-menu-title">Full CSV</div><div class="hdr-menu-sub">All fields + ACMG overrides</div></div>
+        </div>
+        <div style="height:1px;background:rgba(99,140,210,.1);margin:3px 0;"></div>
+        <div class="hdr-menu-item" onclick="exportClinicalReport('single');document.getElementById('floatingExportPanel')?.remove()">
+            <div class="hdr-menu-icon" style="background:rgba(41,121,255,.12);color:#5a9eff"><i class="fas fa-file-medical"></i></div>
+            <div class="hdr-menu-label"><div class="hdr-menu-title">Clinical PDF</div><div class="hdr-menu-sub">Selected variant — lab report</div></div>
+        </div>
+        <div class="hdr-menu-item" onclick="exportClinicalReport('all');document.getElementById('floatingExportPanel')?.remove()">
+            <div class="hdr-menu-icon" style="background:rgba(41,121,255,.08);color:#60a5fa"><i class="fas fa-file-medical-alt"></i></div>
+            <div class="hdr-menu-label"><div class="hdr-menu-title">Batch PDF</div><div class="hdr-menu-sub">All classified — one page per variant</div></div>
+        </div>
+        <div style="height:1px;background:rgba(99,140,210,.1);margin:3px 0;"></div>
+        <div class="hdr-menu-item" onclick="exportIRBPackage();document.getElementById('floatingExportPanel')?.remove()">
+            <div class="hdr-menu-icon" style="background:rgba(167,139,250,.1);color:#a78bfa"><i class="fas fa-flask"></i></div>
+            <div class="hdr-menu-label"><div class="hdr-menu-title">IRB package</div><div class="hdr-menu-sub">JSON with full provenance</div></div>
+        </div>`;
+    document.body.appendChild(panel);
+    setTimeout(() => {
+        document.addEventListener('click', function close(e) {
+            if (!panel.contains(e.target)) { panel.remove(); document.removeEventListener('click', close); }
+        });
+    }, 0);
 }
+
 
 function exportReport() {
     const headers = ['Legacy Name','Protein','cDNA','Determination','CFTR Class','ETI Prediction','Subtype','Confidence','Validation Count'];
@@ -14602,9 +15036,11 @@ function updateHospitalBadge(name) {
     const badge = document.getElementById('hospitalBadge');
     const text  = document.getElementById('hospitalBadgeText');
     if (!badge || !text) return;
-    const display = name.length > 28 ? name.slice(0,26) + '…' : name;
-    text.textContent = display;
-    badge.style.display = name && name !== 'Anonymous' ? '' : 'none';
+    // Abbreviate: show first segment before dash or parenthesis, max 16 chars
+    const short = (name || '').split(/[—–\-\(]/)[0].trim();
+    const display = short.length > 16 ? short.slice(0, 15) + '…' : short || name;
+    text.textContent = display || name;
+    badge.style.display = name && name !== 'Anonymous' ? 'flex' : 'none';
 }
 
 // ---- Seed institutions table on first run ----
@@ -14613,11 +15049,11 @@ async function seedInstitutionsIfEmpty() {
         // Check if table already has data
         const res = await fetch(
             `${CONFIG.SUPABASE.URL}/rest/v1/institutions?select=id&limit=1`,
-            { headers: { 'apikey': CONFIG.SUPABASE.KEY, 'Authorization': `Bearer ${CONFIG.SUPABASE.KEY}`, 'Prefer': 'count=exact', 'Range-Unit': 'items', 'Range': '0-0' } }
+            { headers: { 'apikey': CONFIG.SUPABASE.KEY, 'Authorization': `Bearer ${CONFIG.SUPABASE.KEY}` } }
         );
         if (!res.ok) return;
-        const count = parseInt(res.headers.get('Content-Range')?.split('/')[1] || '0');
-        if (count > 0) return; // already seeded
+        const rows = await res.json();
+        if (rows.length > 0) return; // already seeded
 
         // Insert seeds
         const seeds = [
@@ -18847,6 +19283,77 @@ async function heliosGetClinicianIdentity() {
 }
 
 // ================================================================
+// HEADER ··· MENU
+// ================================================================
+
+function hdrToggleMenu() {
+    const menu = document.getElementById('hdrMoreMenu');
+    if (!menu) return;
+    const isOpen = menu.style.display !== 'none';
+    if (isOpen) {
+        hdrCloseMenu();
+    } else {
+        // Sync theme label
+        const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+        const themeLabel = document.getElementById('menuThemeLabel');
+        const themeIcon  = document.getElementById('menuThemeIcon');
+        if (themeLabel) themeLabel.textContent = isDark ? 'Light mode' : 'Dark mode';
+        if (themeIcon)  themeIcon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+        menu.style.display = 'block';
+        // Close on outside click
+        setTimeout(() => {
+            document.addEventListener('click', hdrMenuOutsideClick, { once: true });
+        }, 0);
+    }
+}
+
+function hdrCloseMenu() {
+    const menu = document.getElementById('hdrMoreMenu');
+    if (menu) menu.style.display = 'none';
+}
+
+function hdrMenuOutsideClick(e) {
+    const menu = document.getElementById('hdrMoreMenu');
+    const btn  = document.getElementById('hdrMoreBtn');
+    if (menu && !menu.contains(e.target) && !btn?.contains(e.target)) {
+        hdrCloseMenu();
+    }
+}
+
+function hdrMenuExport() {
+    hdrCloseMenu();
+    // Open export submenu via existing function
+    toggleExportMenu();
+}
+
+// Segment bar click — routes to correct filter
+function hdrSegClick(e) {
+    const bar = document.getElementById('hdrSegZone');
+    if (!bar) return;
+    const barRect  = bar.getBoundingClientRect();
+    const segBar   = bar.querySelector('.hdr-seg-bar');
+    if (!segBar) { filterVariants('missing'); return; }
+    const barW     = segBar.getBoundingClientRect().width;
+    const clickX   = e.clientX - segBar.getBoundingClientRect().left;
+    const pct      = clickX / barW;
+    const total    = STATE.masterStats?.total || 1;
+    const missing  = STATE.variants?.filter(hasMissingData).length || 0;
+    const critical = STATE.variants?.filter(v => { try { return calculateGapScore(v).gapLevel === 'CRITICAL'; } catch(e) { return false; } }).length || 0;
+    const donePct  = (total - missing) / total;
+    const missPct  = (missing - critical) / total;
+    if (pct <= donePct) {
+        filterVariants('all');
+        v5Toast('Showing complete variants', 'info');
+    } else if (pct <= donePct + missPct) {
+        filterVariants('missing');
+        v5Toast('Showing variants needing curation', 'info');
+    } else {
+        filterVariants('missing');
+        v5Toast('Showing critical gaps', 'info');
+    }
+}
+
+// ================================================================
 // CFTR CLASS RULES — load from DB and cache in STATE
 // ================================================================
 
@@ -18856,6 +19363,7 @@ async function loadCftrClassRules() {
             `${CONFIG.SUPABASE.URL}/rest/v1/cftr_class_enriched?select=*`,
             { headers: { 'apikey': CONFIG.SUPABASE.KEY, 'Authorization': `Bearer ${CONFIG.SUPABASE.KEY}` } }
         );
+        if (res.status === 404 || res.status === 400) { STATE._cftrClassRules = null; return; }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const rows = await res.json();
         STATE._cftrClassRules = {};
@@ -18864,7 +19372,7 @@ async function loadCftrClassRules() {
         }
         console.log(`[NeumuacFQ] CFTR class rules loaded from DB: ${rows.length} classes`);
     } catch(e) {
-        console.warn('[NeumuacFQ] CFTR class rules DB fetch failed — using hardcoded fallback:', e.message);
+        // Silently fall back — cftr_class_enriched view requires migration_002
         STATE._cftrClassRules = null;
     }
 }
@@ -19618,14 +20126,14 @@ function heliosUpdateBadge() {
     const pending = HELIOS.pendingItems.filter(i => i.status === 'pending').length;
     const urgent  = HELIOS.pendingItems.filter(i => i.status === 'pending' && i.priority === 'URGENT').length;
 
-    // Header button badge
+    // Header Helios badge (new design — position:absolute on the button)
     const badge = document.getElementById('heliosBadge');
     if (badge) {
         if (pending > 0) {
             badge.style.display = 'flex';
-            badge.textContent = pending;
+            badge.textContent = pending > 99 ? '99+' : pending;
             badge.style.background = urgent > 0 ? '#f87171' : '#fbbf24';
-            badge.style.color = urgent > 0 ? 'white' : '#0a1220';
+            badge.style.color = urgent > 0 ? 'white' : '#0a0c10';
         } else {
             badge.style.display = 'none';
         }
@@ -20694,6 +21202,7 @@ async function heliosRunGeoSignal() {
 // EXPOSE TO WINDOW
 // ================================================================
 Object.assign(window, {
+    hdrToggleMenu, hdrCloseMenu, hdrSegClick, hdrMenuExport,
     openHelios, closeHelios, heliosTab, heliosFilter,
     resolveContradiction,
     heliosRenderThreadNote, heliosStartDiscPoll, heliosStopDiscPoll,
@@ -20895,7 +21404,7 @@ async function helixSaveSnapshot() {
         if (e.message && e.message.includes('404')) {
             console.debug('[NeumuacFQ] platform_snapshots table not found — run SQL migration to enable trend tracking');
         } else {
-            console.warn('[NeumuacFQ] Snapshot save failed:', e.message);
+            // Snapshot save failed — non-fatal, silenced
         }
     }
 }
