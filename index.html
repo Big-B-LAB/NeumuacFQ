@@ -935,6 +935,29 @@
             max-width:110px; overflow:hidden; text-overflow:ellipsis;
         }
         .hdr-inst:hover { background:rgba(41,121,255,0.13); border-color:rgba(41,121,255,0.32); color:#7aaeff; }
+
+        /* ── App Mode Toggle ── */
+        .app-mode-toggle {
+            display: flex; align-items: center;
+            border: 1px solid rgba(99,140,210,0.18);
+            border-radius: 8px; overflow: hidden;
+            background: rgba(4,8,15,0.5); flex-shrink: 0;
+        }
+        .app-mode-btn {
+            padding: 5px 11px; font-size: 10.5px; font-weight: 500;
+            font-family: var(--font-body); cursor: pointer; border: none;
+            background: transparent; color: #3a5a7a;
+            transition: all .15s; white-space: nowrap; line-height: 1;
+            display: flex; align-items: center; gap: 5px;
+        }
+        .app-mode-btn:first-child { border-right: 1px solid rgba(99,140,210,0.15); }
+        .app-mode-btn.active[data-mode="clinical"] {
+            background: rgba(52,211,153,0.1); color: #34d399;
+        }
+        .app-mode-btn.active[data-mode="curator"] {
+            background: rgba(41,121,255,0.1); color: #7aaeff;
+        }
+        .app-mode-btn:not(.active):hover { color: #9ab8e0; background: rgba(99,140,210,0.06); }
         .hdr-more {
             width:32px; height:32px; border-radius:8px;
             border:1px solid rgba(99,140,210,0.15);
@@ -5388,6 +5411,18 @@
                     <i class="fas fa-lock" id="writeModeIcon" aria-hidden="true"></i>
                 </button>
 
+                <!-- App Mode Toggle -->
+                <div class="app-mode-toggle" id="appModeToggle" title="Switch between Clinical and Curator view">
+                    <button class="app-mode-btn active" data-mode="clinical" onclick="setAppMode('clinical')">
+                        <i class="fas fa-stethoscope" style="font-size:9px;"></i>
+                        Clinical
+                    </button>
+                    <button class="app-mode-btn" data-mode="curator" onclick="setAppMode('curator')">
+                        <i class="fas fa-flask" style="font-size:9px;"></i>
+                        Curator
+                    </button>
+                </div>
+
                 <!-- Institution badge -->
                 <button class="hdr-inst" id="hospitalBadge"
                         onclick="changeHospital()"
@@ -7620,6 +7655,8 @@ const STATE = {
         lastError: null,
         apiCalls: 0
     },
+
+    appMode: 'clinical',  // 'clinical' | 'curator' — persisted to localStorage
 
     // ---- Write mode ----
     writeMode: {
@@ -11022,9 +11059,7 @@ function renderHomeDashboard() {
           +   '<div class="v5-kpi-blink"></div>'
           +   '<div class="v5-kpi-num" id="v5KpiCrit" style="color:#ff3d3d;">0</div>'
           +   '<div class="v5-kpi-label" style="color:#ff3d3d;">Critical gaps</div>'
-          +   '<button class="v5-kpi-cta" onclick="startCurationSprint()" title="Guided curation sprint — work through the most impactful gaps one by one">'
-          +     '<i class="fas fa-bolt" style="font-size:9px"></i> Start resolving →'
-          +   '</button>'
+          +   (STATE.appMode === 'curator' ? '<button class="v5-kpi-cta" onclick="startCurationSprint()" title="Guided curation sprint — work through the most impactful gaps one by one"><i class="fas fa-bolt" style="font-size:9px"></i> Start resolving →</button>' : '')
           + '</div>'
 
             /* ── ETI RESPONSIVE ── */
@@ -11104,7 +11139,7 @@ function renderHomeDashboard() {
         }
     }
     var critN = STATE.variants.filter(function(v){ return calculateGapScore(v).gapLevel === 'CRITICAL'; }).length;
-    if (critN > 0) {
+    if (critN > 0 && STATE.appMode === 'curator') {
         heroEl.className = 'v5-hero';
         heroEl.innerHTML =
             '<div style="min-width:0;">'
@@ -11530,14 +11565,14 @@ function renderVariantList() {
                         ${etiLabel}
                     </span>
                     ${valCount > 0 ? `<span class="val-badge"><i class="fas fa-check-circle" style="font-size: 11px"></i>${valCount}</span>` : ''}
-                    ${hasMissing ? `<span class="missing-pip" title="Missing clinical data"></span>` : ''}
-                    ${(v.search_hit_count||0) >= 5 && valCount === 0 ? `<span class="gap-alert" title="Searched ${v.search_hit_count} times — needs validation"></span>` : ''}
+                    ${(STATE.appMode === 'curator' && hasMissing) ? `<span class="missing-pip" title="Missing clinical data"></span>` : ''}
+                    ${(STATE.appMode === 'curator' && (v.search_hit_count||0) >= 5 && valCount === 0) ? `<span class="gap-alert" title="Searched ${v.search_hit_count} times — needs validation"></span>` : ''}
                 </div>
             </div>
             <div class="collapsed-icon-row ${cls}" style="background:${clsBg[cls]||clsBg.cx};color:${clsColor[cls]||clsColor.cx};font-weight:700;font-size:11px;">
                 ${v.cftr_class || '?'}
             </div>
-            ${(function(){var _g=calculateGapScore(v);var _w=Math.max(4,_g.score);var _c=_g.score>=75?'var(--error)':_g.score>=55?'#f59e0b':_g.score>=35?'#fbbf24':_g.score>=15?'var(--brand)':'var(--class-iii)';return '<div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--border)"><div style="height:100%;width:'+_w+'%;background:'+_c+';border-radius:0 1px 1px 0"></div></div>';})()}
+            ${STATE.appMode === 'curator' ? (function(){var _g=calculateGapScore(v);var _w=Math.max(4,_g.score);var _c=_g.score>=75?'var(--error)':_g.score>=55?'#f59e0b':_g.score>=35?'#fbbf24':_g.score>=15?'var(--brand)':'var(--class-iii)';return '<div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--border)"><div style="height:100%;width:'+_w+'%;background:'+_c+';border-radius:0 1px 1px 0"></div></div>';})() : ''}
         </div>`;
     }).join('');
 
@@ -15648,6 +15683,72 @@ async function showHospitalModal() {
     setTimeout(() => document.getElementById('instSearchInput')?.focus(), 100);
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+//  APP MODE — Clinical vs Curator
+//  Exactly 8 touch points. All guarded with ?. — safe if element absent.
+// ══════════════════════════════════════════════════════════════════════════════
+
+const APP_MODE_KEY = 'helix_app_mode_v1';
+
+function setAppMode(mode) {
+    if (mode !== 'clinical' && mode !== 'curator') return;
+    STATE.appMode = mode;
+    try { localStorage.setItem(APP_MODE_KEY, mode); } catch(e) {}
+    applyModeUI();
+    // Re-render variant list so inline row elements (gap bar, pips) update
+    renderVariantList();
+    // Re-render home section so sprint hero updates
+    if (typeof renderHomeSection === 'function') renderHomeSection();
+}
+
+function applyModeUI() {
+    const mode = STATE.appMode || 'clinical';
+    const isCurator  = mode === 'curator';
+    const isClinical = !isCurator;
+
+    // ── Toggle button active state ──────────────────────────────────────────
+    document.querySelectorAll('.app-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+
+    // ── Touch point 1: Helios button ────────────────────────────────────────
+    const heliosBtn = document.getElementById('heliosBtn');
+    if (heliosBtn) heliosBtn.style.display = isCurator ? '' : 'none';
+
+    // ── Touch point 2: Analytics button ─────────────────────────────────────
+    const analyticsBtn = document.querySelector('.hdr-analytics');
+    if (analyticsBtn) analyticsBtn.style.display = isCurator ? '' : 'none';
+
+    // ── Touch point 3: Write-mode lock ───────────────────────────────────────
+    const writeModeBtn = document.getElementById('writeModeBtn');
+    if (writeModeBtn) writeModeBtn.style.display = isCurator ? '' : 'none';
+
+    // ── Touch points 4a: Miss queue chip ─────────────────────────────────────
+    // These chips already manage their own display via showMissQueuePanel /
+    // showGapQueuePanel. In clinical mode we force-hide them regardless.
+    const chipMissQueue = document.getElementById('chip-missqueue');
+    const chipGaps      = document.getElementById('chip-gaps');
+    const chipComplete  = document.getElementById('chip-complete');
+    if (chipMissQueue) chipMissQueue.style.display = isCurator ? '' : 'none';
+    if (chipGaps)      chipGaps.style.display      = isCurator ? '' : 'none';
+
+    // ── Touch point 4b: "Done" chip — curator only ───────────────────────────
+    if (chipComplete)  chipComplete.style.display  = isCurator ? '' : 'none';
+
+    // ── Touch point 5: Helios urgent ribbon ──────────────────────────────────
+    const heliosRibbon = document.getElementById('heliosRibbon');
+    if (heliosRibbon) heliosRibbon.style.display = isCurator ? '' : 'none';
+}
+
+function initAppMode() {
+    // Restore saved mode, default to clinical
+    let saved = 'clinical';
+    try { saved = localStorage.getItem(APP_MODE_KEY) || 'clinical'; } catch(e) {}
+    if (saved !== 'clinical' && saved !== 'curator') saved = 'clinical';
+    STATE.appMode = saved;
+    applyModeUI();
+}
+
 function initHospital() {
     const stored = getStoredHospital();
     if (stored) {
@@ -17681,6 +17782,7 @@ async function init() {
     Promise.all([loadClassRules(), loadJournalImpacts(), loadCftrClassRules()]).catch(() => {});
     await loadVariants();
     initHospital();
+    initAppMode();
     // Phase 5: run surveillance alerts silently after load — never blocks UI
     setTimeout(() => runSurveillanceAlerts().catch(() => {}), 3000);
     // Phase 5: enhance export menu with cohort + IRB options
@@ -18103,6 +18205,7 @@ Object.assign(window, {
     downloadTemplate, processBulkImport,
     setDashTab, setSITab, exportSearchReport, exportSearchPDF, renderGeoTab,
     showMissQueuePanel, showGapQueuePanel, updateIntelStrip, updateSearchDropdown,
+    setAppMode, applyModeUI, initAppMode,
     triggerHitFlash, triggerMissFlash, classifyHit,
     dismissDevNotice,
     setGeoPeriod, toggleGeoLayer, renderGeoMarkers,
