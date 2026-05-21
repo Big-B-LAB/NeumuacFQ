@@ -15558,7 +15558,7 @@ function renderVariantDetail(variant, fromSearch) {
                 `${CONFIG.SUPABASE.URL}/rest/v1/contradictions?variant_id=eq.${variant.id}&resolved=eq.false&select=field,severity,details,detected_at&order=severity.desc`,
                 { headers: { apikey: CONFIG.SUPABASE.ANON_KEY, Authorization: `Bearer ${CONFIG.SUPABASE.ANON_KEY}` } }
             );
-            if (!r.ok) return;
+            if (!r.ok) return; // 401 = table not yet created, 404 = missing — both handled silently
             const rows = await r.json();
             if (!rows.length) return;
             const critCount = rows.filter(c => c.severity === 'CRITICAL').length;
@@ -28090,8 +28090,7 @@ Object.assign(window, {
     // computeACMGScore and renderACMGPanel are function declarations in script block 0
     // — already on window. DO NOT re-assign here (causes infinite recursion).
     // Clinical reference
-    renderClinicalReferencePanel: function(v){ return renderClinicalReferencePanel(v); },
-    renderClinicalAlertBanner:    function(v){ return renderClinicalAlertBanner(v); },
+    // renderClinicalReferencePanel + renderClinicalAlertBanner: block-0 declarations, already on window.
     // Areas 2-5 search additions
     saveMissNote, highlightMatch,
     renderVelocityHeatmap, renderCoSearchClusters,
@@ -28291,10 +28290,7 @@ async function helixLoadTrends() {
     const container = document.getElementById('helixTrendPanel');
     if (!container) return;
     try {
-        // platform_snapshots table may not exist yet — guard silently
-        let r = null;
-        try { r = await hFetch('platform_snapshots?order=snapshot_date.asc&limit=90'); } catch(e) { r = null; }
-        if (!r) { /* table not yet created — skip snapshot chart */ return; }
+        // platform_snapshots: table not yet created — chart skipped until migration runs
         // 404 = table not created yet — show a quiet informational message, not an error
         if (r.status === 404) {
             container.innerHTML = `<div style="font-size:11px;color:var(--text-tertiary);padding:16px;">Trend data unavailable — <code>platform_snapshots</code> table needs creating (see SQL migrations).</div>`;
