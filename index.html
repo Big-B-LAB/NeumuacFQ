@@ -6618,15 +6618,38 @@
                     <span style="float:right;font-weight:400;font-size: 11px;color:var(--text-tertiary);">Daily snapshots · auto-saved</span>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
-                    ${['Validated','HitRate','Complete','Responsive'].map(k => `
                     <div style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
-                        <div style="font-size: 11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">${k === 'HitRate' ? 'Search hit rate' : k === 'Responsive' ? 'ETI responsive' : k}</div>
+                        <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Validated</div>
                         <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
-                            <span style="font-size:20px;font-weight:700;font-family:var(--font-display);color:var(--text-primary);" id="trend${k}Val">—</span>
-                            <span style="font-size:11px;font-weight:600;" id="trendDelta${k}">—</span>
+                            <span style="font-size:20px;font-weight:700;font-family:var(--font-display);color:var(--text-primary);" id="trendValidatedVal">—</span>
+                            <span style="font-size:11px;font-weight:600;" id="trendDeltaValidated">—</span>
                         </div>
-                        <div style="position:relative;height:40px;"><canvas id="trend${k}"></canvas></div>
-                    </div>`).join('')}
+                        <div style="position:relative;height:40px;"><canvas id="trendValidated"></canvas></div>
+                    </div>
+                    <div style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                        <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Search hit rate</div>
+                        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+                            <span style="font-size:20px;font-weight:700;font-family:var(--font-display);color:var(--text-primary);" id="trendHitRateVal">—</span>
+                            <span style="font-size:11px;font-weight:600;" id="trendDeltaHitRate">—</span>
+                        </div>
+                        <div style="position:relative;height:40px;"><canvas id="trendHitRate"></canvas></div>
+                    </div>
+                    <div style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                        <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Complete</div>
+                        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+                            <span style="font-size:20px;font-weight:700;font-family:var(--font-display);color:var(--text-primary);" id="trendCompleteVal">—</span>
+                            <span style="font-size:11px;font-weight:600;" id="trendDeltaComplete">—</span>
+                        </div>
+                        <div style="position:relative;height:40px;"><canvas id="trendComplete"></canvas></div>
+                    </div>
+                    <div style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                        <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">ETI responsive</div>
+                        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+                            <span style="font-size:20px;font-weight:700;font-family:var(--font-display);color:var(--text-primary);" id="trendResponsiveVal">—</span>
+                            <span style="font-size:11px;font-weight:600;" id="trendDeltaResponsive">—</span>
+                        </div>
+                        <div style="position:relative;height:40px;"><canvas id="trendResponsive"></canvas></div>
+                    </div>
                 </div>
                 <div style="margin-top:8px;font-size: 11px;color:var(--text-tertiary);text-align:right;">
                     <span id="helixTrendNote"></span>
