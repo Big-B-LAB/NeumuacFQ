@@ -5822,28 +5822,29 @@
         .cp-disclaimer {
             width: 100%;
             border-top: 1px solid rgba(44,198,242,0.06);
+            border-left: 2px solid rgba(218,162,42,0.35);
             background: rgba(155,100,8,0.04);
-            padding: 14px 52px;
+            padding: 14px 52px 14px 50px;
             display: flex; align-items: flex-start; gap: 10px;
             animation: cpRise 1s 0.56s cubic-bezier(0.16,1,0.3,1) both;
             position: relative; z-index: 1;
         }
-        .cp-disc-icon { flex-shrink:0; margin-top:1px; color:rgba(210,155,38,0.65); }
+        .cp-disc-icon { flex-shrink:0; margin-top:1px; color:rgba(218,162,42,0.80); }
         .cp-disc-text { flex:1; }
         .cp-disc-header {
             font-family: 'IBM Plex Mono', monospace;
             font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
-            color: rgba(210,155,38,0.70); margin-bottom: 4px;
+            color: rgba(218,162,42,0.92); margin-bottom: 5px;
         }
         .cp-disc-body {
             font-family: 'IBM Plex Sans', sans-serif;
-            font-size: 10.5px; line-height: 1.58;
-            color: rgba(135,168,200,0.50); margin-bottom: 5px;
+            font-size: 11px; line-height: 1.60;
+            color: rgba(195,218,240,0.82); margin-bottom: 6px;
         }
         .cp-disc-email {
             font-family: 'IBM Plex Mono', monospace;
-            font-size: 9.5px; letter-spacing: 0.02em;
-            color: rgba(34,200,216,0.65);
+            font-size: 10px; letter-spacing: 0.03em;
+            color: rgba(44,200,222,0.90);
         }
     </style>
 
@@ -24244,6 +24245,7 @@ function getGapLevel(score) {
 
 // Gap registry — bridges calculateGapScore result into GAP_REGISTRY
 const GAP_REGISTRY = new Map(); // variant_id -> gap result
+const _GAP_PERSISTED = new Set(); // session guard — each variant persisted at most once
 
 function analyseAndRegisterGap(variant) {
     if (!variant) return null;
@@ -24265,7 +24267,11 @@ function analyseAndRegisterGap(variant) {
     };
     GAP_REGISTRY.set(variant.id, gap);
     variant._gap = gap;
-    persistGapScore(variant.id, result.score, result.gapLevel, result.missing, result.recommendations);
+    // Only persist once per variant per session — prevents runaway POST loop
+    if (!_GAP_PERSISTED.has(variant.id)) {
+        _GAP_PERSISTED.add(variant.id);
+        persistGapScore(variant.id, result.score, result.gapLevel, result.missing, result.recommendations);
+    }
     setTimeout(updateGapChip, 0);
     return gap;
 }
@@ -25134,8 +25140,9 @@ function calculateGapScore(variant) {
     if (variant && variant.id) {
         GAP_REGISTRY.set(variant.id, { ...result, _updatedAt: variant.updated_at });
     }
-    // Persist to research_gaps table (fire-and-forget)
-    if (variant && variant.id && score > 0) {
+    // Persist to research_gaps table (fire-and-forget, once per session per variant)
+    if (variant && variant.id && score > 0 && !_GAP_PERSISTED.has(variant.id)) {
+        _GAP_PERSISTED.add(variant.id);
         hFetch('research_gaps', {
             method: 'POST',
             headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
@@ -25182,6 +25189,8 @@ function gapRingHTML(score, level) {
 }
 
 async function persistGapScore(variantId, score, gapLevel, missing, recommendations) {
+    // Double-guard: belt and suspenders against runaway calls
+    if (!variantId) return;
     try {
         await fetch(
             `${CONFIG.SUPABASE.URL}/rest/v1/research_gaps?variant_id=eq.${variantId}`,
@@ -28003,8 +28012,9 @@ function drawCanvas() {
             // Reset state completely
             dismissed    = false;
             currentPct   = 0;
-            screen.style.display  = '';
+            screen.style.display  = 'flex';
             screen.style.opacity  = '1';
+            screen.style.zIndex   = '100002';
             screen.classList.remove('fade-out');
             fill.style.width      = '0%';
             pctEl.textContent     = '0%';
@@ -28031,6 +28041,8 @@ function drawCanvas() {
             // Always show hospital modal on every session start —
             // for the internal pilot, this is a deliberate confirmation step, not a one-time setup
             setTimeout(function() {
+                // Step down loading screen z-index so hospital modal (100001) sits above it
+                screen.style.zIndex = '99999';
                 showHospitalGreeting();
                 if (typeof showHospitalModal === 'function') {
                     showHospitalModal();
@@ -28058,19 +28070,20 @@ function drawCanvas() {
         btn.disabled    = true;
         btn.textContent = 'Cargando\u2026';
 
-        // Immediately show a solid dark screen so platform never flashes
+        // Step 1: instantly bring loading screen above everything — no gap possible
         var ls = document.getElementById('loadingScreen');
         if (ls) {
             ls.style.display  = 'flex';
             ls.style.opacity  = '1';
-            ls.style.zIndex   = '99999';
+            ls.style.zIndex   = '100002'; // above cover (100000) and modal (100001)
         }
 
+        // Step 2: now fade and remove cover — loading screen already solid behind it
         cover.classList.add('cp-fade-out');
         setTimeout(function() {
             cover.style.display = 'none';
             if (window.LOADER && window.LOADER.start) window.LOADER.start();
-        }, 600);
+        }, 900);
     });
 })();
 
@@ -36956,4 +36969,4 @@ function _updateSectionIndicator(section, icon, label) {
 }
 </script>
 </body>
-</html>    
+</html>
