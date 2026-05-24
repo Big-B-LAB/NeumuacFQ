@@ -37,7 +37,7 @@
     <!-- Fonts & Icons -->   
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&family=Raleway:wght@300;400&family=Exo+2:wght@300;400&display=swap" rel="stylesheet">
     <!--
         SRI — Subresource Integrity
         Integrity hash locks this exact file version. If the CDN serves a tampered file,
@@ -5609,6 +5609,125 @@
         html[data-theme="light"] .v5-blob-1 { opacity: .4; }
         html[data-theme="light"] .v5-blob-2 { opacity: .35; }
         html[data-theme="light"] .v5-blob-3 { opacity: .3; }
+
+        /* ── COVER PAGE ── */
+        #coverPage {
+            position: fixed; inset: 0; z-index: 100000;
+            background:
+                radial-gradient(ellipse 70% 55% at 50% 44%, rgba(18,65,185,0.08) 0%, transparent 68%),
+                #05091a;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+        }
+        #coverPage.cp-fade-out {
+            animation: cpFadeOut 1s cubic-bezier(0.4,0,0.2,1) forwards;
+        }
+        @keyframes cpFadeOut {
+            0%   { opacity:1; }
+            100% { opacity:0; pointer-events:none; }
+        }
+        @keyframes cpRise {
+            from { opacity:0; transform:translateY(18px); }
+            to   { opacity:1; transform:translateY(0); }
+        }
+        .cp-content {
+            position: relative; z-index: 1;
+            display: flex; flex-direction: column; align-items: center;
+            width: 100%; max-width: 700px; padding: 0 48px;
+        }
+        .cp-logo-wrap {
+            animation: cpRise 1s 0.12s cubic-bezier(0.16,1,0.3,1) both;
+            margin-bottom: 52px;
+        }
+        .cp-rule { display: none; }
+        .cp-platform-name {
+            font-family: 'Exo 2', 'Raleway', 'IBM Plex Sans', sans-serif;
+            font-size: 20px; font-weight: 300;
+            letter-spacing: 0.30em;
+            margin-bottom: 9px;
+            opacity: 0.80;
+            animation: cpRise 1s 0.34s cubic-bezier(0.16,1,0.3,1) both;
+        }
+        .cp-nm { color: rgba(200,222,248,0.88); }
+        .cp-fq {
+            color: #22c8d8;
+            letter-spacing: 0;
+            margin-left: 0.22em;
+        }
+        .cp-platform-sub {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px; letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: rgba(100,145,188,0.72);
+            margin-bottom: 66px;
+            animation: cpRise 1s 0.40s cubic-bezier(0.16,1,0.3,1) both;
+        }
+        .cp-enter-btn {
+            background: transparent;
+            border: 1px solid rgba(41,121,255,0.30);
+            color: rgba(135,184,228,0.80);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px; letter-spacing: 0.24em;
+            text-transform: uppercase;
+            padding: 16px 76px;
+            border-radius: 5px; cursor: pointer;
+            transition: background 0.24s, border-color 0.24s, color 0.18s, transform 0.1s;
+            outline: none;
+            margin-bottom: 28px;
+            animation: cpRise 1s 0.48s cubic-bezier(0.16,1,0.3,1) both;
+        }
+        .cp-enter-btn:hover {
+            background: rgba(41,121,255,0.055);
+            border-color: rgba(41,121,255,0.55);
+            color: rgba(170,208,248,0.95);
+        }
+        .cp-enter-btn:active  { transform: scale(0.97); }
+        .cp-enter-btn:disabled { opacity: 0.35; cursor: default; transform: none; }
+        .cp-disclaimer {
+            width: 100%; max-width: 480px;
+            border: 1px solid rgba(210,155,30,0.16);
+            border-radius: 8px;
+            overflow: hidden;
+            animation: cpRise 1s 0.60s cubic-bezier(0.16,1,0.3,1) both;
+        }
+        .cp-disc-toggle {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px; cursor: pointer;
+            background: rgba(175,115,12,0.06);
+            transition: background 0.22s;
+            user-select: none;
+        }
+        .cp-disc-toggle:hover { background: rgba(175,115,12,0.11); }
+        .cp-disc-header {
+            display: flex; align-items: center; gap: 7px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9.5px; letter-spacing: 0.13em;
+            text-transform: uppercase;
+            color: rgba(215,162,48,0.82);
+        }
+        .cp-disc-chevron {
+            transition: transform 0.32s cubic-bezier(0.16,1,0.3,1);
+            flex-shrink: 0;
+        }
+        .cp-disc-chevron.open { transform: rotate(180deg); }
+        .cp-disc-body-wrap {
+            max-height: 0; overflow: hidden;
+            transition: max-height 0.38s cubic-bezier(0.16,1,0.3,1);
+            background: rgba(175,115,12,0.04);
+        }
+        .cp-disc-body-wrap.open { max-height: 160px; }
+        .cp-disc-inner { padding: 12px 16px 14px; }
+        .cp-disc-body {
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 11px; line-height: 1.65;
+            color: rgba(152,182,212,0.62);
+            margin-bottom: 8px;
+        }
+        .cp-disc-email {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px; letter-spacing: 0.03em;
+            color: rgba(34,200,216,0.76);
+        }
     </style>
 
 </head>
@@ -5637,6 +5756,58 @@
 <!-- v5 toast container -->
 <div id="v5Toasts" aria-live="polite"></div>
 
+
+<!-- ================================================================
+     COVER PAGE
+     ================================================================ -->
+<div id="coverPage">
+    <div class="cp-content">
+
+        <!-- neumAC Research Group logo -->
+        <div class="cp-logo-wrap">
+            <svg viewBox="0 0 460 88" width="500" xmlns="http://www.w3.org/2000/svg" aria-label="neumAC — Área Sanitaria de A Coruña y Cee">
+                <defs>
+                    <linearGradient id="cpG" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#2cc6f2"/>
+                        <stop offset="100%" stop-color="#1a6fd8"/>
+                    </linearGradient>
+                </defs>
+                <text x="2" y="68" font-family="'IBM Plex Sans',system-ui,sans-serif" font-size="72" font-weight="700" fill="url(#cpG)">neum</text>
+                <text x="191" y="68" font-family="'IBM Plex Sans',system-ui,sans-serif" font-size="72" font-weight="700" fill="#2b7dc2">AC</text>
+                <line x1="300" y1="10" x2="300" y2="80" stroke="rgba(41,121,255,0.28)" stroke-width="1.2"/>
+                <text x="316" y="36" font-family="'IBM Plex Sans',system-ui,sans-serif" font-size="11" font-weight="600" fill="rgba(118,168,210,0.72)" letter-spacing="0.8">ÁREA SANITARIA DE</text>
+                <text x="316" y="56" font-family="'IBM Plex Sans',system-ui,sans-serif" font-size="11" font-weight="600" fill="rgba(118,168,210,0.72)" letter-spacing="0.8">A CORUÑA Y CEE</text>
+            </svg>
+        </div>
+
+        <!-- NeumuacFQ — signature: NEUMUAC wide-tracked light + FQ teal tight -->
+        <div class="cp-platform-name">
+            <span class="cp-nm">NEUMUAC</span><span class="cp-fq">FQ</span>
+        </div>
+        <div class="cp-platform-sub">CFTR Precision Medicine</div>
+
+        <button class="cp-enter-btn" id="cpEnterBtn">Entrar</button>
+
+        <div class="cp-disclaimer">
+            <div class="cp-disc-toggle" id="cpDiscToggle">
+                <div class="cp-disc-header">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(215,162,48,0.82)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    Beta v1.0 &nbsp;·&nbsp; Uso exclusivo profesional clínico
+                </div>
+                <svg class="cp-disc-chevron" id="cpDiscChevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(215,162,48,0.55)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="cp-disc-body-wrap" id="cpDiscBody">
+                <div class="cp-disc-inner">
+                    <div class="cp-disc-body">
+                        Herramienta en fase beta destinada exclusivamente a profesionales sanitarios en el marco de una prueba controlada. No sustituye el juicio clínico. Las clasificaciones de variantes deben verificarse antes de informar cualquier decisión asistencial.
+                    </div>
+                    <div class="cp-disc-email">Comentarios &rarr;&nbsp; devops.neumologia@gmail.com</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
 
 <!-- ================================================================
      LOADING SCREEN
@@ -27698,6 +27869,32 @@ function drawCanvas() {
 })();
 
 // Expose globals for inline onclick handlers
+
+// ── COVER PAGE ──────────────────────────────────────────────────
+(function() {
+    var cover   = document.getElementById('coverPage');
+    var btn     = document.getElementById('cpEnterBtn');
+    var toggle  = document.getElementById('cpDiscToggle');
+    var body    = document.getElementById('cpDiscBody');
+    var chevron = document.getElementById('cpDiscChevron');
+    if (!cover || !btn) return;
+
+    if (toggle && body && chevron) {
+        toggle.addEventListener('click', function() {
+            body.classList.toggle('open');
+            chevron.classList.toggle('open');
+        });
+    }
+
+    btn.addEventListener('click', function() {
+        btn.disabled    = true;
+        btn.textContent = 'Cargando\u2026';
+        cover.classList.add('cp-fade-out');
+        setTimeout(function() { cover.style.display = 'none'; }, 1000);
+    });
+})();
+
+
 // Detail view mode: 'clinical' (compact, key info) | 'curator' (full)
 let _detailViewMode = 'curator';
 function toggleDetailViewMode() {
