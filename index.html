@@ -6909,6 +6909,14 @@
                     <div class="dash-kpi-label">ETI Responsive</div>
                 </div>
                 <div class="dash-kpi">
+                    <div class="dash-kpi-value" style="color:#818cf8" id="dkAlyftrekResponsive">—</div>
+                    <div class="dash-kpi-label">Alyftrek Eligible</div>
+                </div>
+                <div class="dash-kpi">
+                    <div class="dash-kpi-value" style="color:#f59e0b" id="dkExpansion">—</div>
+                    <div class="dash-kpi-label">Expansion Mutations</div>
+                </div>
+                <div class="dash-kpi">
                     <div class="dash-kpi-value" style="color:var(--class-ii)" id="dkExceptional">—</div>
                     <div class="dash-kpi-label">Exceptional</div>
                 </div>
@@ -7227,6 +7235,7 @@
             <!-- ETI filter -->
             <div style="padding:0 12px;border-left:1px solid rgba(255,255,255,.05);">
                 <button class="cfsm-chip" id="cfsmEtiFilter" onclick="cfsmToggleEti(this)" title="Show only ETI-responsive searches">ETI only</button>
+                <button class="cfsm-chip" id="cfsmAlyftrekFilter" onclick="cfsmToggleAlyftrek(this)" title="Show only Alyftrek-eligible searches">Alyftrek</button>
             </div>
             <!-- Region shortcuts — all data-driven, zoom to wherever data actually is -->
             <div style="display:flex;gap:5px;padding:0 12px;border-left:1px solid rgba(255,255,255,.05);">
@@ -10446,6 +10455,9 @@ async function loadVariants() {
 
         // Load cross-session search history from Supabase — non-blocking
         setTimeout(() => loadCrossSessionHistory().catch(() => {}), 2000);
+
+        // Load drug safety alerts + jurisdiction rules — non-blocking, used by CGC + single-variant detail
+        setTimeout(() => loadDrugReferenceData().catch(() => {}), 1500);
 
         // Render live home dashboard in the empty state panel
         setTimeout(() => renderHomeDashboard(), 350);
@@ -14996,6 +15008,17 @@ function cfsmDrawNodes(g, st, W, H) {
             if (pt.etiCounts.responsive / etTotal < 0.3) return;
         }
 
+        // Apply Alyftrek filter — show only centres searching Alyftrek-eligible variants
+        if (st.alyftrekOnly) {
+            const alyCount = (pt.queries
+                ? Object.keys(pt.queries).filter(q => {
+                    const v = STATE.variantsByLegacyName?.get(q) || STATE.variants?.find(x => x.legacy_name?.toLowerCase() === q.toLowerCase());
+                    return v?.alyftrek_prediction === 'responsive';
+                }).length
+                : 0);
+            if (alyCount === 0) return;
+        }
+
         // Apply text filter — dim non-matching instead of hiding
         const matchesFilter = !filterText || pt.name.toLowerCase().includes(filterText)
             || Object.keys(pt.queries).some(q => q.toLowerCase().includes(filterText));
@@ -15315,8 +15338,24 @@ function cfsmSetPeriod(days, btn) {
 function cfsmToggleEti(btn) {
     if (!window._cfsm) return;
     window._cfsm.etiOnly = !window._cfsm.etiOnly;
+    if (window._cfsm.etiOnly) {
+        window._cfsm.alyftrekOnly = false;
+        document.getElementById('cfsmAlyftrekFilter')?.classList.remove('eti-active','active');
+    }
     btn.classList.toggle('eti-active', window._cfsm.etiOnly);
     btn.classList.toggle('active', window._cfsm.etiOnly);
+    cfsmBuild();
+}
+
+function cfsmToggleAlyftrek(btn) {
+    if (!window._cfsm) return;
+    window._cfsm.alyftrekOnly = !window._cfsm.alyftrekOnly;
+    if (window._cfsm.alyftrekOnly) {
+        window._cfsm.etiOnly = false;
+        document.getElementById('cfsmEtiFilter')?.classList.remove('eti-active','active');
+    }
+    btn.classList.toggle('eti-active', window._cfsm.alyftrekOnly);
+    btn.classList.toggle('active', window._cfsm.alyftrekOnly);
     cfsmBuild();
 }
 
@@ -16119,7 +16158,12 @@ function calculateMasterStats() {
         responsive: v.filter(x => x.eti_prediction === 'responsive').length,
         nonResponsive: v.filter(x => x.eti_prediction === 'non_responsive').length,
         unknown: v.filter(x => !x.eti_prediction || x.eti_prediction === 'unknown').length,
-        validated: v.filter(x => (x.validation_count || 0) > 0).length
+        validated: v.filter(x => (x.validation_count || 0) > 0).length,
+        // Alyftrek stats
+        alyftrekResponsive:    v.filter(x => x.alyftrek_prediction === 'responsive').length,
+        alyftrekNonResponsive: v.filter(x => x.alyftrek_prediction === 'non_responsive').length,
+        alyftrekUnknown:       v.filter(x => x.alyftrek_prediction === 'unknown' || !x.alyftrek_prediction).length,
+        expansionMutations:    v.filter(x => x.eti_prediction === 'non_responsive' && x.alyftrek_prediction === 'responsive').length
     };
 }
 
@@ -16189,6 +16233,8 @@ function updateFilterChips() {
     // Dashboard
     setText('dkTotal', s.total.toLocaleString());
     setText('dkResponsive', s.responsive.toLocaleString());
+    setText('dkAlyftrekResponsive', s.alyftrekResponsive?.toLocaleString() ?? '—');
+    setText('dkExpansion', s.expansionMutations?.toLocaleString() ?? '—');
     setText('dkExceptional', s.exceptional.toLocaleString());
     setText('dkValidated', s.validated.toLocaleString());
     setText('dashboardExceptional', s.exceptional.toLocaleString());
@@ -18351,10 +18397,10 @@ function renderVariantDetail(variant, fromSearch) {
                     </div>
                     ${(() => {
                         // Alyftrek eligibility — EU/AEMPS (Spain) label: non-Class I = eligible
-                        const alyClass = variant.cftr_class;
+                        const alyClass    = variant.cftr_class;
+                        const alyTier     = variant.alyftrek_evidence_tier;
                         const alyEligible = alyClass && alyClass !== 'I';
                         const alyClassI   = alyClass === 'I';
-                        const alyUnknown  = !alyClass;
                         const alyColor    = alyEligible ? '#818cf8' : alyClassI ? '#f87171' : '#5a7aaa';
                         const alyIcon     = alyEligible ? 'fa-circle-check' : alyClassI ? 'fa-circle-xmark' : 'fa-question-circle';
                         const alyLabel    = alyEligible ? 'Alyftrek Eligible (EU/AEMPS)' : alyClassI ? 'Alyftrek Class I — biallelic rule applies' : 'Alyftrek status unknown';
@@ -18362,12 +18408,35 @@ function renderVariantDetail(variant, fromSearch) {
                             ? (isNonResponsive ? 'Expansion mutation — ETI non-responsive but Alyftrek eligible (verify evidence tier)' : 'Eligible per EU/EMA/AEMPS label · Once daily')
                             : alyClassI ? 'Eligible only if other allele is non-Class I · Ineligible if homozygous Class I'
                             : 'Class required to determine Alyftrek eligibility';
+                        // Evidence tier badge
+                        const tierLabels = {
+                            clinical_trial: { label: 'Phase III Clinical Trial', color: '#34d399' },
+                            frt_assay:      { label: 'FRT Cell Assay (≥10% CFTR transport)', color: '#60a5fa' },
+                            class_rule:     { label: 'EU Class Rule (non-Class I)', color: '#818cf8' },
+                            extrapolation:  { label: 'Functional Extrapolation', color: '#fbbf24' },
+                            insufficient:   { label: 'Insufficient Evidence', color: '#f87171' }
+                        };
+                        const tier = tierLabels[alyTier] || null;
+                        const tierBadge = tier
+                            ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;font-family:var(--font-mono);
+                                background:${tier.color}18;color:${tier.color};border:1px solid ${tier.color}35;margin-top:3px;display:inline-block;">
+                                ${tier.label}</span>`
+                            : '';
+                        // Switching note — only for ETI-responsive variants
+                        const switchNote = (alyEligible && !isNonResponsive)
+                            ? `<div style="font-size:10px;color:var(--text-tertiary);margin-top:4px;line-height:1.5;">
+                                Switching from Trikafta: individualised MDT decision — AEMPS does not mandate switching ·
+                                Alyftrek is once-daily vs Trikafta twice-daily
+                               </div>` : '';
                         return `<div class="eti-card" style="background:${alyColor}14;border-color:${alyColor}35;margin-top:8px;">
                             <div class="eti-icon" style="background:${alyColor}20;color:${alyColor};"><i class="fas ${alyIcon}"></i></div>
-                            <div>
+                            <div style="flex:1;">
                                 <div class="eti-label" style="color:${alyColor};">${alyLabel}</div>
                                 <div class="eti-sub">${alySub}</div>
-                                ${alyEligible ? `<div style="font-size:10px;color:#818cf8;margin-top:3px;font-family:var(--font-mono);">EU · FDA · UK · Canada approved (Dec 2024–Jul 2025)</div>` : ''}
+                                ${tierBadge}
+                                ${switchNote}
+                                ${alyEligible ? `<div style="font-size:10px;color:#818cf8;margin-top:3px;font-family:var(--font-mono);">
+                                    🇪🇺 EU/AEMPS · 🇺🇸 FDA · 🇬🇧 MHRA · 🇨🇦 CDA (Dec 2024–Jul 2025)</div>` : ''}
                             </div>
                         </div>`;
                     })()}
@@ -18651,6 +18720,14 @@ function renderValidationSnapshotDiff(v, cur) {
             : '';
         parts.push('<span title="' + (changed ? 'ETI changed' : 'ETI unchanged') + '">ETI <strong style="color:' + col + ';">' + escapeHTML(v.snapshot_eti) + '</strong>' + arrow + '</span>');
     }
+    if (v.snapshot_alyftrek) {
+        const changed = cur && cur.alyftrek_prediction !== v.snapshot_alyftrek;
+        const col   = changed ? '#fbbf24' : '#818cf8';
+        const arrow = (changed && cur)
+            ? ' <span style="color:#fbbf24;font-size:9px;">→ now ' + escapeHTML(cur.alyftrek_prediction || '—') + '</span>'
+            : '';
+        parts.push('<span title="' + (changed ? 'Alyftrek changed since validation' : 'Alyftrek unchanged') + '">ALY <strong style="color:' + col + ';">' + escapeHTML(v.snapshot_alyftrek) + '</strong>' + arrow + '</span>');
+    }
     if (v.snapshot_determination) {
         const changed = cur && cur.final_determination !== v.snapshot_determination;
         const col = changed ? '#f87171' : 'var(--text-primary)';
@@ -18880,10 +18957,11 @@ async function submitValidation() {
                 session_id:          STATE.searchIntelligence?.sessionId || null,
                 app_mode:            STATE.appMode || 'clinical',
                 // Snapshot of variant state at time of validation — immutable audit record
-                snapshot_cftr_class: variant?.cftr_class || null,
-                snapshot_eti:        variant?.eti_prediction || null,
+                snapshot_cftr_class:    variant?.cftr_class || null,
+                snapshot_eti:           variant?.eti_prediction || null,
+                snapshot_alyftrek:      variant?.alyftrek_prediction || null,
                 snapshot_determination: variant?.final_determination || null,
-                created_at:          new Date().toISOString()
+                created_at:             new Date().toISOString()
             })
         });
 
@@ -29156,6 +29234,9 @@ Object.assign(window, { showAuditTrail });
                         <button class="helios-btn helios-btn-ghost" onclick="heliosCheckEvidenceContradictions()" id="hbtnEvidence" style="grid-column:1/-1;border-color:rgba(248,113,113,0.2);color:var(--helios-red);">
                             <i class="fas fa-vial-circle-check"></i> Scan Evidence Contradictions
                         </button>
+                        <button class="helios-btn helios-btn-ghost" onclick="heliosScanAlyftrekOpportunities()" id="hbtnAlyftrek" style="grid-column:1/-1;border-color:rgba(129,140,248,0.3);color:#818cf8;">
+                            <i class="fas fa-pills"></i> ⚡ Alyftrek Opportunity Scan — identify expansion mutations + untagged variants
+                        </button>
                     </div>
                     <div id="heliosScanProgress" style="display:none;">
                         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--helios-text3);margin-bottom:6px;">
@@ -31404,6 +31485,51 @@ function heliosCheckVariantConsistency(v) {
         }
     }
 
+    // 12. Alyftrek — non-Class I with no alyftrek_prediction tagged
+    if (v.cftr_class && v.cftr_class !== 'I' && !v.alyftrek_prediction) {
+        issues.push({
+            item_type:      'INTERNAL_LOGIC',
+            bot_summary:    `Class ${v.cftr_class} variant has no Alyftrek prediction — EU/AEMPS label makes this eligible`,
+            bot_reasoning:  `Class ${v.cftr_class} variants are eligible for Alyftrek under the EU/EMA/AEMPS label (non-Class I rule). alyftrek_prediction should be set to 'responsive' with evidence_tier 'class_rule'.`,
+            bot_confidence: 90,
+            proposed_field: 'alyftrek_prediction',
+            proposed_value: 'responsive',
+            current_value:  'not set',
+            _priority:      'ROUTINE'
+        });
+    }
+
+    // 13. Alyftrek — expansion mutation (ETI non-responsive but Alyftrek eligible)
+    // Flag for curator attention — these need FRT assay evidence tier verification
+    if (v.eti_prediction === 'non_responsive' && v.alyftrek_prediction === 'responsive'
+        && v.alyftrek_evidence_tier !== 'frt_assay' && v.alyftrek_evidence_tier !== 'clinical_trial') {
+        issues.push({
+            item_type:      'INTERNAL_LOGIC',
+            bot_summary:    `Expansion mutation: ETI non-responsive but Alyftrek eligible — evidence tier should be frt_assay`,
+            bot_reasoning:  `This variant is ETI non-responsive but Alyftrek-eligible — it is one of the 113 expansion mutations added in the Alyftrek EU label. The alyftrek_evidence_tier should be 'frt_assay' (FRT cell assay data). Current tier: ${v.alyftrek_evidence_tier || 'not set'}.`,
+            bot_confidence: 80,
+            proposed_field: 'alyftrek_evidence_tier',
+            proposed_value: 'frt_assay',
+            current_value:  v.alyftrek_evidence_tier || 'not set',
+            _priority:      'ROUTINE'
+        });
+    }
+
+    // 14. Class I exceptional with alyftrek_prediction = non_responsive
+    // These should be 'unknown' — biallelic context required
+    if (v.cftr_class === 'I' && v.class_subtype === 'exceptional' && v.alyftrek_prediction === 'non_responsive') {
+        issues.push({
+            item_type:      'INTERNAL_LOGIC',
+            bot_summary:    `Exceptional Class I variant has alyftrek_prediction = non_responsive — should be 'unknown'`,
+            bot_reasoning:  `Exceptional Class I variants may be eligible if the second allele is non-Class I. The correct alyftrek_prediction for a single exceptional Class I allele is 'unknown' — biallelic assessment is required at CGC.`,
+            bot_confidence: 85,
+            proposed_field: 'alyftrek_prediction',
+            proposed_value: 'unknown',
+            current_value:  v.alyftrek_prediction,
+            _priority:      'ROUTINE'
+        });
+    }
+
     return issues;
 }
 
@@ -31512,6 +31638,109 @@ async function runConsistencyFingerprintCheck() {
 
 
 // ---- External scan: PubMed ----
+// ── Alyftrek Opportunity Scan ─────────────────────────────────────────────────
+// Identifies: (1) expansion mutations (ETI-no / Alyftrek-yes)
+//             (2) variants where Alyftrek prediction is missing or unknown
+//             (3) Class I variants where biallelic context could unlock eligibility
+async function heliosScanAlyftrekOpportunities() {
+    heliosLog('info', '⚡ Starting Alyftrek opportunity scan…');
+    heliosSetBotStatus('running');
+    heliosShowProgress('Scanning for Alyftrek opportunities…', 0);
+
+    const variants = STATE.variants;
+    let findings = 0;
+    const runId = uuid();
+
+    await hFetch('helios_bot_runs', {
+        method: 'POST',
+        body: JSON.stringify({
+            id: runId, run_type: 'INTERNAL_SCAN', status: 'running',
+            variants_scanned: 0, findings_created: 0, errors: 0,
+            triggered_by: 'clinician_alyftrek_scan', started_at: new Date().toISOString()
+        })
+    }).catch(() => {});
+
+    for (let i = 0; i < variants.length; i++) {
+        const v = variants[i];
+        heliosShowProgress(`Checking ${v.legacy_name}…`, Math.round(i / variants.length * 100));
+
+        // 1. Expansion mutations — ETI non-responsive but Alyftrek eligible
+        // These are patients who previously had NO modulator option
+        if (v.eti_prediction === 'non_responsive' && v.alyftrek_prediction === 'responsive') {
+            await heliosCreatePendingItem({
+                item_type:      'PATTERN_SIGNAL',
+                variant_id:     v.id,
+                variant_name:   v.legacy_name,
+                bot_summary:    `⚡ Expansion mutation — ETI non-responsive, Alyftrek eligible (EU/AEMPS). Previously no modulator.`,
+                bot_reasoning:  `${v.legacy_name} is one of the Alyftrek label expansion mutations. It was ETI non-responsive meaning patients with this variant had NO approved modulator prior to June 2025. They are now eligible under the EU/EMA/AEMPS label. Consider patient outreach if this variant has been searched by clinicians from your institution. Evidence tier: ${v.alyftrek_evidence_tier || 'not set'} — verify on EMA label before prescribing.`,
+                bot_confidence: 92,
+                proposed_field: 'alyftrek_evidence_tier',
+                proposed_value: 'frt_assay',
+                current_value:  v.alyftrek_evidence_tier || 'not set',
+                scan_source:    'ALYFTREK_SCAN',
+                scan_run_id:    runId,
+                priority:       'URGENT'
+            });
+            findings++;
+        }
+
+        // 2. Non-Class I variants with no alyftrek_prediction
+        if (v.cftr_class && v.cftr_class !== 'I' && !v.alyftrek_prediction) {
+            await heliosCreatePendingItem({
+                item_type:      'INTERNAL_LOGIC',
+                variant_id:     v.id,
+                variant_name:   v.legacy_name,
+                bot_summary:    `Class ${v.cftr_class} variant missing Alyftrek prediction — eligible under EU/AEMPS label`,
+                bot_reasoning:  `This Class ${v.cftr_class} variant has no alyftrek_prediction. Under the EU/EMA/AEMPS label (non-Class I = eligible), this variant is Alyftrek-eligible. Set alyftrek_prediction = 'responsive', evidence_tier = 'class_rule'.`,
+                bot_confidence: 90,
+                proposed_field: 'alyftrek_prediction',
+                proposed_value: 'responsive',
+                current_value:  'not set',
+                scan_source:    'ALYFTREK_SCAN',
+                scan_run_id:    runId,
+                priority:       'ROUTINE'
+            });
+            findings++;
+        }
+
+        // 3. Highly searched variants with unknown Alyftrek prediction
+        if ((v.alyftrek_prediction === 'unknown' || !v.alyftrek_prediction)
+            && (v.search_hit_count || 0) >= 3) {
+            await heliosCreatePendingItem({
+                item_type:      'INTERNAL_ORPHAN',
+                variant_id:     v.id,
+                variant_name:   v.legacy_name,
+                bot_summary:    `Alyftrek unknown — searched ${v.search_hit_count} times. Clinical demand without eligibility answer.`,
+                bot_reasoning:  `Clinicians have searched this variant ${v.search_hit_count} times but Alyftrek eligibility is unknown (no CFTR class assigned). For a variant with this level of clinical interest, classification should be prioritised. Request functional assay data or RNA splicing analysis.`,
+                bot_confidence: 75,
+                scan_source:    'ALYFTREK_SCAN',
+                scan_run_id:    runId,
+                priority:       (v.search_hit_count || 0) >= 10 ? 'URGENT' : 'ROUTINE'
+            });
+            findings++;
+        }
+
+        if (i % 30 === 0) await new Promise(r => setTimeout(r, 50));
+    }
+
+    await hFetch(`helios_bot_runs?id=eq.${runId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+            status: 'completed',
+            variants_scanned: variants.length,
+            findings_created: findings,
+            completed_at: new Date().toISOString()
+        })
+    }).catch(() => {});
+
+    heliosShowProgress('Complete', 100);
+    setTimeout(() => heliosHideProgress(), 1000);
+    heliosSetBotStatus('idle');
+    heliosLog('success', `✅ Alyftrek scan complete — ${findings} finding${findings !== 1 ? 's' : ''} queued`);
+    showNotification(`Alyftrek scan: ${findings} opportunities found`, findings > 0 ? 'warning' : 'success');
+    heliosUpdateBadge();
+}
+
 async function heliosScanExternal() {
     heliosLog('info', '🌐 Starting external literature scan via PubMed…');
     heliosSetBotStatus('running');
@@ -31531,23 +31760,27 @@ async function heliosScanExternal() {
             const recentPapers = papers.filter(p => p.year && p.year >= new Date().getFullYear() - 3);
             const classClues   = papers.filter(p => p.title && /class|functional|protein|trafficking|gating/i.test(p.title));
             const etiClues     = papers.filter(p => p.title && /trikafta|kalydeco|lumacaftor|ivacaftor|elexacaftor|modulator|ETI/i.test(p.title));
+            const alyftrekClues = papers.filter(p => p.title && /alyftrek|vanzacaftor|deutivacaftor|vnz|tez.*iva|VX-121|VX-561|FRT assay/i.test(p.title));
 
             const reasoning = [
                 `PubMed returned ${papers.length} result${papers.length!==1?'s':''} for "${v.legacy_name} CFTR".`,
-                recentPapers.length  ? `${recentPapers.length} published in the last 3 years — recent evidence available.` : 'No publications in the last 3 years.',
-                classClues.length    ? `${classClues.length} paper${classClues.length!==1?'s':''} may contain functional class data.` : '',
-                etiClues.length      ? `${etiClues.length} paper${etiClues.length!==1?'s':''} may discuss modulator response.` : '',
-                !v.cftr_class        ? `⚠ No CFTR class assigned — evidence review is urgent.` : '',
+                recentPapers.length   ? `${recentPapers.length} published in the last 3 years — recent evidence available.` : 'No publications in the last 3 years.',
+                classClues.length     ? `${classClues.length} paper${classClues.length!==1?'s':''} may contain functional class data.` : '',
+                etiClues.length       ? `${etiClues.length} paper${etiClues.length!==1?'s':''} may discuss ETI modulator response.` : '',
+                alyftrekClues.length  ? `⚡ ${alyftrekClues.length} paper${alyftrekClues.length!==1?'s':''} may discuss Alyftrek/VNZ/FRT assay data — check for evidence tier upgrade.` : '',
+                !v.cftr_class         ? `⚠ No CFTR class assigned — evidence review is urgent.` : '',
+                !v.alyftrek_prediction || v.alyftrek_prediction === 'unknown' ? `⚠ Alyftrek prediction unknown — check papers for FRT assay or functional data.` : '',
                 !v.eti_prediction || v.eti_prediction === 'unknown' ? `⚠ ETI response unknown — check papers for modulator trial data.` : '',
                 'Review each paper and add relevant sources to the evidence chain.'
             ].filter(Boolean).join(' ');
 
             const confidence = Math.min(
                 60
-                + (recentPapers.length  > 0 ? 10 : 0)
-                + (classClues.length    > 0 ? 10 : 0)
-                + (etiClues.length      > 0 ? 10 : 0)
-                + (!v.cftr_class        ? 10 : 0),
+                + (recentPapers.length   > 0 ? 10 : 0)
+                + (classClues.length     > 0 ? 10 : 0)
+                + (etiClues.length       > 0 ?  5 : 0)
+                + (alyftrekClues.length  > 0 ? 10 : 0)
+                + (!v.cftr_class         ? 10 : 0),
                 95
             );
 
@@ -31555,13 +31788,13 @@ async function heliosScanExternal() {
                 item_type:        'NEW_EVIDENCE',
                 variant_id:       v.id,
                 variant_name:     v.legacy_name,
-                bot_summary:      `${papers.length} PubMed paper${papers.length > 1 ? 's' : ''} found — ${recentPapers.length} recent${etiClues.length ? ', ' + etiClues.length + ' ETI-related' : ''}`,
+                bot_summary:      `${papers.length} PubMed paper${papers.length > 1 ? 's' : ''} found — ${recentPapers.length} recent${alyftrekClues.length ? ', ' + alyftrekClues.length + ' Alyftrek-related' : etiClues.length ? ', ' + etiClues.length + ' ETI-related' : ''}`,
                 bot_reasoning:    reasoning,
                 bot_confidence:   confidence,
                 evidence_payload: JSON.stringify(papers),
                 scan_source:      'PUBMED',
                 scan_run_id:      runId,
-                priority:         (!v.cftr_class || !v.eti_prediction || v.eti_prediction === 'unknown') ? 'URGENT' : 'ROUTINE'
+                priority:         (!v.cftr_class || !v.eti_prediction || v.eti_prediction === 'unknown' || alyftrekClues.length > 0) ? 'URGENT' : 'ROUTINE'
             });
             findings++;
             heliosLog('success', `  ✓ ${papers.length} papers — conf ${confidence}% — ${(!v.cftr_class)?'URGENT':'routine'}`);
@@ -33177,9 +33410,62 @@ function runCompoundGenotypeCalculation() {
             </div>
         </div>` : '';
 
+    // ── IMPROVEMENT 9: Jurisdiction indicator ──
+    const jurisdictionHTML = `
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:5px 10px;
+             border-radius:5px;background:rgba(129,140,248,0.05);border:1px solid rgba(129,140,248,0.15);">
+            <span style="font-size:13px;">🇪🇺</span>
+            <div style="font-size:10px;color:var(--text-tertiary);">
+                <strong style="color:#818cf8;">EU/AEMPS label active</strong> (Spain · IPT-416) —
+                Alyftrek eligibility: non-Class I rule · 266 mutations ·
+                <span style="color:var(--text-tertiary);">FDA label: mutation list · 153 mutations</span>
+            </div>
+        </div>`;
+
+    // ── IMPROVEMENT 10: SwCl therapeutic vs diagnostic ──
+    const swclHTML = verdict.alyftrekEligible ? `
+        <div style="padding:7px 10px;border-radius:6px;margin-bottom:10px;
+             background:rgba(96,165,250,0.05);border:1px solid rgba(96,165,250,0.15);font-size:10px;
+             color:var(--text-tertiary);line-height:1.6;">
+            <strong style="color:#60a5fa;">SwCl context:</strong>
+            Diagnostic threshold: ≥60 mmol/L = CF confirmed (already done — not shown here) ·
+            On Alyftrek: 86% of patients reach SwCl <60 mmol/L (additional −8.4 mmol/L vs Trikafta in SKYLINE 102) ·
+            AEMPS Spain monitors SwCl + LCI₂.₅ as therapeutic response markers
+        </div>` : '';
+
+    // ── IMPROVEMENT 11: CF-RD pathway note for mild classes ──
+    const cfrDClasses = ['IV', 'V', 'VI'];
+    const hasCFRDAllele = cfrDClasses.includes(v1.cftr_class) || cfrDClasses.includes(v2.cftr_class);
+    const cfrdHTML = (hasCFRDAllele && verdict.alyftrekEligible) ? `
+        <div style="padding:7px 10px;border-radius:6px;margin-bottom:10px;
+             background:rgba(52,211,153,0.05);border:1px solid rgba(52,211,153,0.15);font-size:10px;
+             color:var(--text-tertiary);line-height:1.6;">
+            <strong style="color:#34d399;">CFTR-RD pathway:</strong>
+            One or both alleles are Class ${cfrDClasses.filter(c => c === v1.cftr_class || c === v2.cftr_class).join('/')} —
+            consider CFTR-related disorder (CBAVD, chronic pancreatitis, bronchiectasis without classic CF).
+            Alyftrek's EU label covers Classes II–VI including CFTR-RD patients.
+            Specialist assessment recommended before initiating in non-classic CF presentations.
+        </div>` : '';
+
+    // ── IMPROVEMENT 12: Both-allele CF-causing validation warning ──
+    const suspectAlleles = [];
+    if (!v1.cftr_class && !v1.final_determination) suspectAlleles.push(v1.legacy_name);
+    if (!v2.cftr_class && !v2.final_determination) suspectAlleles.push(v2.legacy_name);
+    const bothAlleleCFwarning = suspectAlleles.length ? `
+        <div style="padding:8px 10px;border-radius:6px;margin-bottom:12px;
+             background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.25);font-size:11px;
+             color:var(--text-secondary);line-height:1.5;">
+            <span style="color:#fbbf24;font-weight:600;">⚠ Allele verification required:</span>
+            ${suspectAlleles.map(n => `<strong>${escapeHTML(n)}</strong>`).join(', ')} has no class assignment and no final determination.
+            Confirm this variant is CF-causing before interpreting eligibility results.
+            The CGC assumes both alleles are disease-causing based on prior clinical diagnosis.
+        </div>` : '';
+
     result.innerHTML = `
     <div style="border-top:1px solid var(--border);padding-top:16px;">
 
+        ${jurisdictionHTML}
+        ${bothAlleleCFwarning}
         ${expansionBannerHTML}
         ${unknownPathwayHTML}
 
@@ -33216,6 +33502,8 @@ function runCompoundGenotypeCalculation() {
         </div>
 
         ${comparisonHTML}
+        ${swclHTML}
+        ${cfrdHTML}
         ${checklistHTML}
 
         <!-- NBS + onset -->
@@ -33691,6 +33979,49 @@ function saveToSearchHistory(query, variantId, variantName) {
 }
 
 // Load cross-session history from Supabase on init (supplements localStorage)
+// ── Drug reference data — safety alerts + jurisdiction rules ─────────────────
+// Fetches from the drug_safety_alerts and drug_jurisdiction_rules tables
+// populated during Phase 3 migration. Used by CGC, single-variant detail,
+// and MDT report. Falls back to hardcoded MODULATOR_MAP values if fetch fails.
+async function loadDrugReferenceData() {
+    try {
+        const [safetyRes, jurisdRes] = await Promise.all([
+            hFetch('drug_safety_alerts?select=*&is_active=eq.true&order=severity.asc'),
+            hFetch('drug_jurisdiction_rules?select=*&is_active=eq.true&order=approval_date.asc')
+        ]);
+        STATE.drugSafetyAlerts    = Array.isArray(safetyRes)  ? safetyRes  : [];
+        STATE.jurisdictionRules   = Array.isArray(jurisdRes)  ? jurisdRes  : [];
+
+        // Build quick-lookup maps
+        STATE.drugSafetyByDrug = {};
+        STATE.drugSafetyAlerts.forEach(a => {
+            if (!STATE.drugSafetyByDrug[a.drug_name]) STATE.drugSafetyByDrug[a.drug_name] = [];
+            STATE.drugSafetyByDrug[a.drug_name].push(a);
+        });
+        STATE.jurisdictionByKey = {};
+        STATE.jurisdictionRules.forEach(r => {
+            STATE.jurisdictionByKey[`${r.drug_name}:${r.jurisdiction}`] = r;
+        });
+
+        // Update MODULATOR_MAP with live DB data for Alyftrek
+        const alyMod = Object.values(MODULATOR_MAP).find((m, _, arr) =>
+            Object.keys(MODULATOR_MAP).find(k => k.includes('Alyftrek') && MODULATOR_MAP[k] === m));
+        if (alyMod) {
+            const boxed = STATE.drugSafetyAlerts.find(a => a.drug_name === 'Alyftrek' && a.alert_type === 'boxed_warning');
+            const dosing = STATE.drugSafetyAlerts.find(a => a.drug_name === 'Alyftrek' && a.title?.includes('Weight-Based'));
+            const cyp3a  = STATE.drugSafetyAlerts.find(a => a.drug_name === 'Alyftrek' && a.title?.includes('CYP3A'));
+            if (boxed) alyMod.boxedWarning = boxed.description;
+            if (dosing) alyMod.dosingNote  = dosing.description;
+            if (cyp3a)  alyMod.cyp3aNote   = cyp3a.monitoring_schedule || cyp3a.description;
+        }
+        console.log(`[NeumuacFQ] Drug reference data loaded — ${STATE.drugSafetyAlerts.length} safety alerts, ${STATE.jurisdictionRules.length} jurisdiction rules`);
+    } catch(e) {
+        console.warn('[NeumuacFQ] Drug reference data load failed — using fallback values', e);
+        STATE.drugSafetyAlerts  = STATE.drugSafetyAlerts  || [];
+        STATE.jurisdictionRules = STATE.jurisdictionRules || [];
+    }
+}
+
 async function loadCrossSessionHistory() {
     const institutionId = STATE.searchIntelligence.hospitalObj?.id;
     if (!institutionId) return;
