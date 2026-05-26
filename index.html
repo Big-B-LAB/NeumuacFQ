@@ -33044,8 +33044,145 @@ function runCompoundGenotypeCalculation() {
                No approved modulators for this combination. Consider clinical trial eligibility.
            </div>`;
 
+    // ── IMPROVEMENT 1: "Previously no modulator" expansion mutation banner ──
+    // Highest health equity impact — ETI-no / Alyftrek-yes patients
+    const expansionBannerHTML = verdict.alyftrekExpansionMutation ? `
+        <div style="padding:12px 14px;border-radius:8px;margin-bottom:12px;
+             background:rgba(129,140,248,0.08);border:2px solid rgba(129,140,248,0.4);">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="font-size:16px;">⚡</span>
+                <div style="font-size:13px;font-weight:700;color:#818cf8;">New treatment pathway — Alyftrek expansion mutation</div>
+            </div>
+            <div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">
+                One or both alleles in this genotype were previously classified as
+                <strong style="color:#f87171;">ETI non-responsive</strong> — meaning this patient had
+                <strong>no approved modulator</strong> prior to Alyftrek's EU/AEMPS approval (June 2025).
+                They are now eligible under the EU label (non-Class I rule).<br>
+                <span style="color:#818cf8;font-size:10px;margin-top:4px;display:block;">
+                    Evidence basis: FRT cell assay (≥10% CFTR transport restoration) ·
+                    Verify specific variant on EMA label before prescribing ·
+                    Consider patient notification if not already initiated
+                </span>
+            </div>
+        </div>` : '';
+
+    // ── IMPROVEMENT 2: Unknown allele "what to do next" pathway ──
+    const hasUnknownAllele = !v1.cftr_class || !v2.cftr_class;
+    const unknownAlleleName = !v1.cftr_class ? v1.legacy_name : !v2.cftr_class ? v2.legacy_name : null;
+    const unknownPathwayHTML = hasUnknownAllele ? `
+        <div style="padding:12px 14px;border-radius:8px;margin-bottom:12px;
+             background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.3);">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <span style="font-size:15px;">❓</span>
+                <div style="font-size:12px;font-weight:700;color:#fbbf24;">
+                    ${escapeHTML(unknownAlleleName)} — CFTR class not assigned
+                </div>
+            </div>
+            <div style="font-size:11px;color:var(--text-secondary);line-height:1.7;">
+                Alyftrek eligibility cannot be determined for this allele without a class assignment.
+                This variant was imported without classification data.
+            </div>
+            <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                <div style="padding:7px 9px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid var(--border);">
+                    <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:3px;text-transform:uppercase;letter-spacing:.06em;">Immediate step</div>
+                    <div style="font-size:11px;color:var(--text-secondary);">Request <strong>FRT cell assay</strong> or Ussing chamber functional test from a CFTR reference laboratory</div>
+                </div>
+                <div style="padding:7px 9px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid var(--border);">
+                    <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:3px;text-transform:uppercase;letter-spacing:.06em;">Submit for curation</div>
+                    <div style="font-size:11px;color:var(--text-secondary);">Register with <strong>CFTR2 consortium</strong> · Contact Spanish CF Reference Centre (CIBERER)</div>
+                </div>
+                <div style="padding:7px 9px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid var(--border);">
+                    <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:3px;text-transform:uppercase;letter-spacing:.06em;">If intronic variant</div>
+                    <div style="font-size:11px;color:var(--text-secondary);">RNA splicing analysis to confirm Class V (reduced synthesis) vs Class I (nonsense-mediated decay)</div>
+                </div>
+                <div style="padding:7px 9px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid var(--border);">
+                    <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:3px;text-transform:uppercase;letter-spacing:.06em;">Interim guidance</div>
+                    <div style="font-size:11px;color:var(--text-secondary);">If other allele is non-Class I and patient has confirmed CF phenotype, consider compassionate access discussion with AEMPS</div>
+                </div>
+            </div>
+        </div>` : '';
+
+    // ── IMPROVEMENT 3: Trikafta vs Alyftrek comparison ──
+    // Only shown when both are eligible — the new clinical decision
+    const trikaftaMod = Object.entries(MODULATOR_MAP).find(([n]) => n.includes('Trikafta'))?.[1];
+    const alyftrekMod = Object.entries(MODULATOR_MAP).find(([n]) => n.includes('Alyftrek'))?.[1];
+    const bothEligible = verdict.trikaftaEligible && verdict.alyftrekEligible;
+    const comparisonHTML = bothEligible ? `
+        <div style="margin-bottom:12px;">
+            <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;
+                 letter-spacing:.08em;margin-bottom:6px;">
+                Trikafta vs Alyftrek — prescribing decision
+            </div>
+            <div style="border-radius:8px;overflow:hidden;border:1px solid var(--border);">
+                <div style="display:grid;grid-template-columns:100px 1fr 1fr;background:rgba(255,255,255,0.03);">
+                    <div style="padding:6px 8px;font-size:10px;font-weight:600;color:var(--text-tertiary);border-right:1px solid var(--border);"></div>
+                    <div style="padding:6px 8px;font-size:11px;font-weight:700;color:#34d399;border-right:1px solid var(--border);text-align:center;">Trikafta (ETI)</div>
+                    <div style="padding:6px 8px;font-size:11px;font-weight:700;color:#818cf8;text-align:center;">Alyftrek</div>
+                </div>
+                ${[
+                    ['Dosing',        'Twice daily',                          '✦ Once daily'],
+                    ['Formulation',   'Morning 2 tabs + evening 1 tab',       '2 tabs (≥40 kg) or 3 tabs (<40 kg)'],
+                    ['Safety label',  'Transaminase warning (standard)',       '⚠️ BOXED WARNING — hepatotoxicity'],
+                    ['LFT monitoring','Periodic (no fixed schedule)',          'Baseline → 3 months → 6 months → annually'],
+                    ['SwCl reduction','Standard modulator response',           '✦ Superior: −8.4 mmol/L additional vs ETI'],
+                    ['CYP3A',        'Standard interactions',                  'Dose adjust with inhibitors/inducers'],
+                    ['Ophthal. (peds)','Lens opacity monitoring',              'Lens opacity monitoring (deutivacaftor)'],
+                    ['AEMPS Spain',  'Standard CF protocol',                   'SwCl + LCI₂.₅ + spirometry monitoring'],
+                ].map((r, i) => `
+                    <div style="display:grid;grid-template-columns:100px 1fr 1fr;
+                         background:${i%2?'rgba(255,255,255,0.01)':'transparent'};
+                         border-top:1px solid var(--border);">
+                        <div style="padding:5px 8px;font-size:10px;color:var(--text-tertiary);
+                             border-right:1px solid var(--border);font-weight:500;">${r[0]}</div>
+                        <div style="padding:5px 8px;font-size:11px;color:var(--text-secondary);
+                             border-right:1px solid var(--border);">${r[1]}</div>
+                        <div style="padding:5px 8px;font-size:11px;color:var(--text-secondary);">${r[2]}</div>
+                    </div>`).join('')}
+            </div>
+            <div style="font-size:10px;color:var(--text-tertiary);margin-top:5px;line-height:1.5;">
+                ✦ Clinically superior endpoint vs ETI (SKYLINE 102/103 trials) ·
+                AEMPS Spain: budget-neutral prescribing — no price barrier between drugs ·
+                Switching from Trikafta: individualised decision, no mandatory switch
+            </div>
+        </div>` : '';
+
+    // ── IMPROVEMENT 4: Pre-prescription checklist ──
+    // Alyftrek-specific — surfaces after eligibility verdict
+    const checklistHTML = verdict.alyftrekEligible ? `
+        <div style="margin-bottom:12px;">
+            <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;
+                 letter-spacing:.08em;margin-bottom:6px;">
+                Alyftrek pre-prescription checklist
+            </div>
+            <div style="border-radius:8px;border:1px solid rgba(129,140,248,0.25);
+                 background:rgba(129,140,248,0.04);padding:10px 12px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                    ${[
+                        ['🧪', 'LFTs at baseline', 'ALT + AST + bilirubin before first dose — boxed warning requirement'],
+                        ['⚖️', 'Patient weight recorded', '<40 kg → low-strength formulation · ≥40 kg → standard formulation'],
+                        ['💊', 'CYP3A medications reviewed', 'Azoles, macrolides, HIV protease inhibitors → dose adjustment required'],
+                        ['👁️', 'Ophthalmology baseline (<18y)', 'Lens opacity baseline exam before initiating in patients under 18'],
+                        ['📋', 'Hormonal contraceptives noted', 'Higher rash incidence in females on hormonal contraceptives — counsel patient'],
+                        ['📊', 'AEMPS monitoring plan set (Spain)', 'SwCl + LCI₂.₅ + spirometry schedule: baseline → 3 months → 6 months → annually'],
+                    ].map(([icon, title, desc]) => `
+                        <div style="display:flex;gap:8px;padding:6px 8px;border-radius:6px;
+                             background:rgba(255,255,255,0.03);border:1px solid rgba(129,140,248,0.15);">
+                            <span style="font-size:13px;flex-shrink:0;">${icon}</span>
+                            <div>
+                                <div style="font-size:11px;font-weight:500;color:var(--text-primary);">${title}</div>
+                                <div style="font-size:10px;color:var(--text-tertiary);line-height:1.4;margin-top:1px;">${desc}</div>
+                            </div>
+                        </div>`).join('')}
+                </div>
+            </div>
+        </div>` : '';
+
     result.innerHTML = `
     <div style="border-top:1px solid var(--border);padding-top:16px;">
+
+        ${expansionBannerHTML}
+        ${unknownPathwayHTML}
+
         <!-- Allele summary -->
         <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:14px;">
             <div style="padding:10px 12px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border);">
@@ -33078,7 +33215,10 @@ function runCompoundGenotypeCalculation() {
             ${modHTML}
         </div>
 
-        <!-- NBS + CFTR-RD -->
+        ${comparisonHTML}
+        ${checklistHTML}
+
+        <!-- NBS + onset -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
             <div style="padding:8px 10px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border);">
                 <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px;">NBS detection</div>
