@@ -34933,26 +34933,8 @@ function runCompoundGenotypeCalculation() {
 
     // ── FIX 5: Cis/trans acknowledgement checkbox ──
     // MDT Report button is disabled until this is ticked
-    const transCheckboxHTML = `
-        <div style="padding:8px 12px;border-radius:7px;margin-bottom:10px;
-             background:rgba(99,140,210,0.06);border:1px solid rgba(99,140,210,0.2);">
-            <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
-                <input type="checkbox" id="cgcTransConfirm"
-                    onchange="(function(cb){
-                        const btn = document.getElementById('cgcMDTBtn');
-                        if(btn) btn.disabled = !cb.checked;
-                        cb.closest('div').style.borderColor = cb.checked ? 'rgba(52,211,153,0.4)' : 'rgba(99,140,210,0.2)';
-                    })(this)"
-                    style="margin-top:2px;flex-shrink:0;accent-color:#34d399;">
-                <span style="font-size:11px;color:var(--text-secondary);line-height:1.6;">
-                    I confirm these alleles are on <strong>separate chromosomes (trans)</strong>
-                    — verified from the patient's genetic report (phase confirmed).
-                    <span style="color:var(--text-tertiary);font-size:10px;display:block;margin-top:2px;">
-                        If phase is unknown, clinical genetics referral required before treatment decision.
-                    </span>
-                </span>
-            </label>
-        </div>`;
+    // Trans checkbox is now rendered inline near the MDT button — removed from top
+    const transCheckboxHTML = ''; // rendered at bottom near MDT button
 
     result.innerHTML = `
     <div style="border-top:1px solid var(--border);padding-top:16px;">
@@ -34960,7 +34942,6 @@ function runCompoundGenotypeCalculation() {
         ${jurisdictionHTML}
         ${polyTBannerHTML}
         ${ageWarningHTML}
-        ${transCheckboxHTML}
         ${bothAlleleCFwarning}
         ${_swclHTML}
         ${_switchHTML}
@@ -35034,19 +35015,320 @@ function runCompoundGenotypeCalculation() {
                     background:rgba(52,211,153,0.08);color:#34d399;cursor:pointer;font-family:var(--font-body);">
                 <i class="fas fa-bookmark" style="font-size:10px;margin-right:4px;"></i>Save case
             </button>
-            <button id="cgcMDTBtn" onclick="generateMDTReport('${escapeAttr(v1.legacy_name)}','${escapeAttr(v2.legacy_name)}')"
-                    disabled
-                    title="Tick the cis/trans confirmation above to enable"
-                    style="margin-left:10px;font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid rgba(41,121,255,0.3);
-                    background:rgba(41,121,255,0.08);color:#60a5fa;cursor:pointer;font-family:var(--font-body);
-                    opacity:0.5;transition:opacity .2s;"
-                    onmouseenter="if(!this.disabled)this.style.opacity='1'"
-                    onmouseleave="if(!this.disabled)this.style.opacity=''">
-                <i class="fas fa-file-medical" style="font-size:10px;margin-right:4px;"></i>Generate MDT report
-            </button>
+        </div>
+
+        <!-- ── PHASE CONFIRMATION + MDT REPORT ─────────────────────────── -->
+        <div id="cgcTransBlock" style="margin-top:12px;border-radius:10px;
+             border:1.5px solid rgba(99,140,210,0.18);
+             background:rgba(99,140,210,0.04);
+             transition:border-color .3s,background .3s;">
+
+            <!-- Trans checkbox -->
+            <div style="padding:12px 14px 10px;">
+                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                    <input type="checkbox" id="cgcTransConfirm"
+                        onchange="(function(cb){
+                            const btn   = document.getElementById('cgcMDTBtn');
+                            const block = document.getElementById('cgcTransBlock');
+                            const note  = document.getElementById('cgcMDTNote');
+                            if(cb.checked){
+                                if(btn){
+                                    btn.disabled = false;
+                                    btn.style.opacity='1';
+                                    btn.style.background='linear-gradient(135deg,#1a56db,#2979ff)';
+                                    btn.style.color='#fff';
+                                    btn.style.boxShadow='0 4px 16px rgba(41,121,255,0.35)';
+                                    btn.style.transform='translateY(0)';
+                                    btn.innerHTML='<i class=\"fas fa-file-medical\" style=\"margin-right:6px;\"></i>Generate MDT Report <i class=\"fas fa-download\" style=\"font-size:9px;margin-left:4px;opacity:.8;\"></i>';
+                                }
+                                if(block){
+                                    block.style.borderColor='rgba(52,211,153,0.45)';
+                                    block.style.background='rgba(52,211,153,0.04)';
+                                }
+                                if(note) note.style.color='#34d399';
+                            } else {
+                                if(btn){
+                                    btn.disabled=true;
+                                    btn.style.opacity='0.4';
+                                    btn.style.background='rgba(41,121,255,0.06)';
+                                    btn.style.color='#60a5fa';
+                                    btn.style.boxShadow='none';
+                                    btn.innerHTML='<i class=\"fas fa-file-medical\" style=\"margin-right:6px;\"></i>Generate MDT Report';
+                                }
+                                if(block){
+                                    block.style.borderColor='rgba(99,140,210,0.18)';
+                                    block.style.background='rgba(99,140,210,0.04)';
+                                }
+                                if(note) note.style.color='var(--text-tertiary)';
+                            }
+                        })(this)"
+                        style="margin-top:3px;flex-shrink:0;accent-color:#34d399;width:15px;height:15px;">
+                    <div style="flex:1;">
+                        <div style="font-size:11px;color:var(--text-secondary);line-height:1.6;font-weight:500;">
+                            I confirm these alleles are on
+                            <strong style="color:var(--text-primary);">separate chromosomes (trans)</strong>
+                            — verified from the patient's genetic report.
+                        </div>
+                        <div id="cgcMDTNote" style="font-size:10px;color:var(--text-tertiary);margin-top:3px;line-height:1.5;">
+                            If phase is unknown, clinical genetics referral required before treatment decision.
+                        </div>
+                        <button onclick="openClinicalNote('trans_phase')"
+                            style="margin-top:5px;background:none;border:none;padding:0;cursor:pointer;
+                            font-size:10px;color:#60a5fa;font-family:var(--font-body);
+                            display:inline-flex;align-items:center;gap:4px;opacity:.8;transition:opacity .15s;"
+                            onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.8'">
+                            <i class="fas fa-circle-info" style="font-size:10px;"></i>
+                            Why does this matter? Clinical rationale
+                        </button>
+                    </div>
+                </label>
+            </div>
+
+            <!-- MDT Report button -->
+            <div style="padding:0 14px 14px;">
+                <button id="cgcMDTBtn"
+                        onclick="generateMDTReport('${escapeAttr(v1.legacy_name)}','${escapeAttr(v2.legacy_name)}')"
+                        disabled
+                        style="width:100%;height:42px;padding:0 18px;border-radius:8px;
+                        border:1px solid rgba(41,121,255,0.3);
+                        background:rgba(41,121,255,0.06);color:#60a5fa;
+                        cursor:pointer;font-family:var(--font-body);font-size:12px;font-weight:700;
+                        opacity:0.4;transition:all .25s ease;letter-spacing:.01em;">
+                    <i class="fas fa-file-medical" style="margin-right:6px;"></i>Generate MDT Report
+                </button>
+            </div>
         </div>
     </div>`;
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CLINICAL NOTES LIBRARY
+// Structured clinical rationale documents attached to specific platform decisions.
+// Each note explains WHY a rule exists, the clinical risk it prevents,
+// and the evidence basis. Accessible to clinicians via ⓘ links and to
+// developers via CLINICAL_NOTES.getAll() from the console.
+// ══════════════════════════════════════════════════════════════════════════════
+
+const CLINICAL_NOTES = {
+
+    trans_phase: {
+        id:      'trans_phase',
+        title:   'Phase confirmation in compound heterozygote assessment',
+        version: '1.0 · NeumuacFQ · 2025',
+        sections: [
+            {
+                heading: 'What is phase?',
+                body: `In genetics, "phase" (or "haplotype") describes which copies of a gene carry which variants.
+A patient with two CFTR variants in their report could have:
+
+• Trans configuration: one variant on chromosome 7 (copy A) from one parent, and the other variant on chromosome 7 (copy B) from the other parent. This means both CFTR copies are non-functional — the patient has CF.
+
+• Cis configuration: both variants on the same chromosome (copy A) from one parent, with a completely normal copy B from the other parent. This patient is a carrier — they have one functional CFTR copy and do not have CF.
+
+The genetic report alone often cannot distinguish these without additional testing.`
+            },
+            {
+                heading: 'Why does this matter for modulator prescribing?',
+                body: `Modulator drugs (Trikafta, Alyftrek, Kalydeco) are indicated for patients with CF — two non-functional CFTR alleles. A carrier has one functional allele and does not have CF.
+
+If phase is assumed (incorrectly) to be trans when the variants are actually in cis, the compound genotype assessment will incorrectly suggest the patient is CF-affected and potentially eligible for modulators. This is a prescribing error.
+
+In clinical practice this risk is most significant for:
+• Patients with two unusual or rare variants where parental testing was not performed
+• Reports from rapid gene panels that do not include phasing
+• Patients with family histories suggesting one highly-affected parent who may carry multiple CFTR variants on one chromosome`
+            },
+            {
+                heading: 'How to confirm phase',
+                body: `The gold standard methods are:
+
+1. Parental testing — test both parents for the identified variants. If mother carries variant A and father carries variant B (or vice versa), the patient's variants are confirmed in trans.
+
+2. Long-read sequencing — some modern sequencing platforms (Oxford Nanopore, PacBio) can directly phase variants on the same sequencing read.
+
+3. Clinical genetics assessment — a clinical geneticist can review the inheritance pattern and family history to infer phase with high confidence even without direct parental testing in many cases.
+
+4. Haplotype analysis — some CFTR diagnostic laboratories include haplotype reporting for known compound alleles (e.g. R117H;5T).`
+            },
+            {
+                heading: 'When phase is unknown',
+                body: `If the genetic report does not confirm phase and parental testing has not been performed, the clinical team should:
+
+1. Refer to clinical genetics before initiating modulator therapy
+2. Document the uncertainty in the clinical record
+3. Consider whether the patient's phenotype (sweat chloride, lung function, pancreatic status, age of onset) is consistent with CF — a carrier rarely presents with typical CF features
+
+NeumuacFQ requires explicit confirmation of trans phase before the MDT Report can be generated. This is intentional — the report is a clinical decision-support document and should not be produced without the clinician taking explicit responsibility for this interpretation.`
+            },
+            {
+                heading: 'Platform behaviour',
+                body: `The checkbox "I confirm these alleles are on separate chromosomes (trans)" must be ticked before the MDT Report button activates. This forces an explicit acknowledgement that:
+
+• The clinician has reviewed the genetic report
+• Phase has been confirmed (or is being clinically inferred with appropriate justification)
+• The clinician takes clinical responsibility for this interpretation
+
+The checkbox state is not stored — it must be confirmed fresh for each MDT Report generation. This is deliberate: phase confirmation should be an active clinical act, not a remembered default.`
+            },
+            {
+                heading: 'Evidence basis',
+                body: `• ACMG/AMP variant interpretation guidelines (Richards et al., Genet Med 2015) — phase must be established before compound heterozygote pathogenicity can be asserted
+• CFTR2 database documentation — compound heterozygote data assumes trans configuration
+• Vertex Pharmaceuticals prescribing information — Trikafta/Alyftrek indicated for confirmed CF genotypes
+• ECFS Standards of Care — phasing recommended prior to modulator initiation in patients with atypical presentations`
+            }
+        ]
+    },
+
+    r117h_polyt: {
+        id:      'r117h_polyt',
+        title:   'R117H penetrance and poly-T context',
+        version: '1.0 · NeumuacFQ · 2025',
+        sections: [
+            {
+                heading: 'Why R117H requires poly-T context',
+                body: `R117H is a Class IV CFTR variant (reduced conductance) but its clinical penetrance — whether it causes CF or is clinically silent — depends critically on the poly-T tract in intron 8 (IVS8).
+
+The poly-T tract affects splicing efficiency of CFTR exon 9. A shorter poly-T tract (5T) causes more exon 9 skipping, producing less functional CFTR protein. A longer tract (9T) causes minimal skipping.
+
+This means R117H with 5T context behaves like a moderate CF-causing allele, while R117H with 9T context is considered largely benign in most guidelines.`
+            },
+            {
+                heading: 'Clinical significance by poly-T context',
+                body: `• R117H;5T — CF-causing in most patients. Ivacaftor (Kalydeco) approved. Trikafta may be indicated in compound heterozygotes with a minimal-function second allele.
+
+• R117H;7T — Intermediate penetrance. Associated with CBAVD (congenital bilateral absence of vas deferens) in males and mild CF in some patients. Modulator response is uncertain — MDT decision required.
+
+• R117H;9T — Low penetrance. Considered benign by most current guidelines. CF phenotype is not expected. Modulator indication is absent.
+
+NeumuacFQ blocks compound genotype calculation for standalone R117H until poly-T context is confirmed because the eligibility result would be clinically misleading without it.`
+            }
+        ]
+    },
+
+    alyftrek_class_rule: {
+        id:      'alyftrek_class_rule',
+        title:   'Alyftrek eligibility: the non-Class I rule',
+        version: '1.0 · NeumuacFQ · 2025',
+        sections: [
+            {
+                heading: 'The EU/AEMPS eligibility rule',
+                body: `Alyftrek (vanzacaftor/tezacaftor/deutivacaftor) received EU approval (EMA) and AEMPS authorisation under IPT-416 in June 2025 for CF patients aged ≥6 years with at least one non-Class I CFTR mutation.
+
+This is a broader label than Trikafta (ETI), which requires the presence of specific mutations on its approved list. Alyftrek's label covers patients with any genotype where at least one allele is NOT Class I (nonsense/frameshift/splice leading to no protein).`
+            },
+            {
+                heading: 'Why Class I is the only exclusion',
+                body: `Class I variants produce no CFTR protein at all — there is no protein for the modulator to act on. Modulators work by potentiating (Kalydeco), correcting misfolding (tezacaftor/elexacaftor/vanzacaftor), or stabilising existing CFTR protein at the cell surface.
+
+A patient homozygous for Class I variants (both alleles produce no protein) has no substrate for modulator action and is therefore not eligible. Any patient with at least one non-Class I allele has some CFTR protein present — even if the second allele is Class I — and may benefit.
+
+This is the clinical basis for the "expansion mutation" category in NeumuacFQ: patients with one ETI-non-responsive allele but one non-Class I allele who are newly eligible under Alyftrek's EU label.`
+            }
+        ]
+    },
+
+    getAll() {
+        return [this.trans_phase, this.r117h_polyt, this.alyftrek_class_rule];
+    }
+};
+
+function openClinicalNote(noteId) {
+    const note = CLINICAL_NOTES[noteId];
+    if (!note) { console.warn('[NeumuacFQ] Clinical note not found:', noteId); return; }
+
+    // Remove existing if open
+    document.getElementById('clinicalNoteOverlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'clinicalNoteOverlay';
+    Object.assign(overlay.style, {
+        position: 'fixed', inset: '0', zIndex: '999999',
+        background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+        padding: '40px 16px', overflowY: 'auto', fontFamily: 'var(--font-body)'
+    });
+
+    const sectionsHTML = note.sections.map(s => `
+        <div style="margin-bottom:22px;">
+            <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+                 color:#60a5fa;margin-bottom:8px;padding-bottom:6px;
+                 border-bottom:1px solid rgba(41,121,255,0.15);">
+                ${escapeHTML(s.heading)}
+            </div>
+            <div style="font-size:13px;color:#c8d8f0;line-height:1.8;white-space:pre-line;">
+                ${escapeHTML(s.body)}
+            </div>
+        </div>`).join('');
+
+    overlay.innerHTML = `
+    <div style="background:#0c1828;border-radius:14px;max-width:680px;width:100%;
+         border:1px solid rgba(41,121,255,0.25);box-shadow:0 32px 80px rgba(0,0,0,0.9);
+         overflow:hidden;">
+
+        <!-- Header -->
+        <div style="padding:20px 28px 16px;border-bottom:1px solid rgba(41,121,255,0.12);
+             background:linear-gradient(135deg,rgba(5,10,24,0.98),rgba(8,14,28,0.98));">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+                <div style="width:38px;height:38px;border-radius:9px;flex-shrink:0;
+                     background:rgba(41,121,255,0.1);border:1px solid rgba(41,121,255,0.2);
+                     display:flex;align-items:center;justify-content:center;">
+                    <i class="fas fa-book-medical" style="color:#60a5fa;font-size:15px;"></i>
+                </div>
+                <div style="flex:1;">
+                    <div style="font-size:16px;font-weight:700;color:#e8f0fe;line-height:1.3;margin-bottom:4px;">
+                        ${escapeHTML(note.title)}
+                    </div>
+                    <div style="font-size:10px;color:#3a5a7a;">
+                        ${escapeHTML(note.version)} ·
+                        NeumuacFQ Clinical Rationale Library ·
+                        For clinical and developer reference
+                    </div>
+                </div>
+                <button onclick="document.getElementById('clinicalNoteOverlay').remove()"
+                    style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);
+                    border-radius:6px;color:#5a7aaa;cursor:pointer;padding:5px 10px;font-size:12px;
+                    flex-shrink:0;font-family:var(--font-body);">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div style="padding:24px 28px 28px;overflow-y:auto;max-height:65vh;">
+            ${sectionsHTML}
+
+            <!-- Developer note -->
+            <div style="margin-top:24px;padding:12px 16px;border-radius:8px;
+                 background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.15);">
+                <div style="font-size:10px;font-weight:700;color:#fbbf24;text-transform:uppercase;
+                     letter-spacing:.1em;margin-bottom:5px;">For platform developers</div>
+                <div style="font-size:11px;color:#6a8a6a;line-height:1.6;">
+                    All clinical rationale documents are stored in the
+                    <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;
+                    font-family:var(--font-mono);color:#93c5fd;">CLINICAL_NOTES</code>
+                    object in the platform source.
+                    Access all documents via
+                    <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;
+                    font-family:var(--font-mono);color:#93c5fd;">CLINICAL_NOTES.getAll()</code>
+                    from the browser console.
+                    Add new notes by extending the
+                    <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;
+                    font-family:var(--font-mono);color:#93c5fd;">CLINICAL_NOTES</code>
+                    object and calling
+                    <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;
+                    font-family:var(--font-mono);color:#93c5fd;">openClinicalNote('your_id')</code>
+                    from any UI element.
+                </div>
+            </div>
+        </div>
+    </div>`;
+
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+Object.assign(window, { CLINICAL_NOTES, openClinicalNote });
 
 function generateMDTReport(allele1Name, allele2Name) {
     const v1 = STATE.variantsByLegacyName.get(allele1Name);
