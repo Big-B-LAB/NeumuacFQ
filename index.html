@@ -33422,7 +33422,7 @@ function cgcRenderSavedCases() {
 
 
 
-unction openCompoundGenotypeCalculator(preloadAllele1) {
+function openCompoundGenotypeCalculator(preloadAllele1) {
     const existing = document.getElementById('patientGenotypePanel');
     if (existing) {
         existing.remove();
@@ -33890,7 +33890,8 @@ function pgpSetView(view) {
     </div>`;
 }
 Object.assign(window, { pgpSetView });
-    const a1 = document.getElementById('pgpAllele1');
+
+function pgpSwapAlleles() {
     const a2 = document.getElementById('pgpAllele2');
     if (!a1 || !a2) return;
     const tmp = a1.value;
