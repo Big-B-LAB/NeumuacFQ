@@ -33660,46 +33660,44 @@ function pgpUpdateCard(n) {
     if (!name) { card.innerHTML = ''; return; }
     const v = pgpResolveAllele(name);
     if (!v) {
-        card.innerHTML = '<div style="font-size:10px;color:#f87171;padding:3px 0;display:flex;align-items:center;gap:5px;">'
-            + '<i class="fas fa-circle-exclamation" style="font-size:9px;"></i>Not found in database</div>';
+        card.innerHTML = `<div style="font-size:10px;color:#f87171;padding:3px 0;
+            display:flex;align-items:center;gap:5px;">
+            <i class="fas fa-circle-exclamation" style="font-size:9px;"></i>
+            Not found in database</div>`;
         return;
     }
     const cls = v.cftr_class || null;
     const clsColors = { I:'#f87171', II:'#fb923c', 'II/III':'#fb923c', III:'#34d399', IV:'#60a5fa', V:'#c084fc', VI:'#f472b6' };
-    const clsColor = (cls && clsColors[cls]) ? clsColors[cls] : '#5a7aaa';
-    const etiPred  = typeof v.eti_prediction === 'string' ? v.eti_prediction : '';
-    const etiColor = etiPred === 'responsive' ? '#34d399'
-                   : etiPred === 'non_responsive' ? '#f87171' : '#6a8aaa';
-    const etiLabel = etiPred ? etiPred.replace(/_/g,' ') : 'unknown';
-    const valCount = Number(v.validation_count) || 0;
-    const fields   = [v.cftr_class, v.protein_name, v.cdna_name, v.eti_prediction, v.final_determination];
-    const completeness = fields.filter(f => f !== null && f !== undefined && f !== '').length;
-    const completeColor = completeness >= 4 ? '#34d399' : completeness >= 2 ? '#fbbf24' : '#f87171';
+    const cc  = (cls && clsColors[cls]) ? clsColors[cls] : '#5a7aaa';
+    const ep  = typeof v.eti_prediction === 'string' ? v.eti_prediction : '';
+    const ec  = ep === 'responsive' ? '#34d399' : ep === 'non_responsive' ? '#f87171' : '#6a8aaa';
+    const el  = ep ? ep.replace(/_/g,' ') : 'unknown';
+    const vc  = Number(v.validation_count) || 0;
+    const fds = [v.cftr_class, v.protein_name, v.cdna_name, v.eti_prediction, v.final_determination];
+    const cmp = fds.filter(f => f !== null && f !== undefined && f !== '').length;
+    const dc  = cmp >= 4 ? '#34d399' : cmp >= 2 ? '#fbbf24' : '#f87171';
 
-    card.innerHTML =
-        // Class badge + name row
-        '<div style="display:flex;align-items:center;gap:7px;">'
-      +   '<div style="width:26px;height:26px;border-radius:6px;flex-shrink:0;'
-      +       'background:' + clsColor + '18;border:1.5px solid ' + clsColor + '40;'
-      +       'display:flex;flex-direction:column;align-items:center;justify-content:center;">'
-      +     '<span style="font-size:11px;font-weight:800;color:' + clsColor + ';line-height:1;">' + (cls||'?') + '</span>'
-      +   '</div>'
-      +   '<div style="min-width:0;flex:1;">'
-      +     '<div style="font-size:12px;font-weight:700;color:#d8e8fc;font-family:var(--pgp-mono,var(--font-mono));'
-      +         'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHTML(v.legacy_name) + '</div>'
-      +     '<div style="font-size:9px;color:#3a5a7a;font-family:var(--pgp-mono,var(--font-mono));">'
-      +         escapeHTML(v.protein_name || '—') + '</div>'
-      +   '</div>'
-      +   // ETI chip
-      +   '<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;flex-shrink:0;'
-      +       'background:' + etiColor + '15;color:' + etiColor + ';border:1px solid ' + etiColor + '35;">'
-      +       etiLabel + '</span>'
-      +   // Completeness dot
-      +   '<span title="Data completeness: ' + completeness + '/5 fields" style="width:6px;height:6px;border-radius:50%;'
-      +       'background:' + completeColor + ';flex-shrink:0;opacity:.8;"></span>'
-      +   // Validation count
-      +   (valCount > 0 ? '<span style="font-size:9px;color:#34d399;flex-shrink:0;">' + valCount + '✓</span>' : '')
-      + '</div>';
+    card.innerHTML = `
+    <div style="display:flex;align-items:center;gap:7px;">
+        <div style="width:26px;height:26px;border-radius:6px;flex-shrink:0;
+             background:${cc}22;border:1.5px solid ${cc}55;
+             display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:11px;font-weight:800;color:${cc};line-height:1;">${cls || '?'}</span>
+        </div>
+        <div style="min-width:0;flex:1;">
+            <div style="font-size:12px;font-weight:700;color:#d8e8fc;
+                 font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                ${escapeHTML(v.legacy_name)}</div>
+            <div style="font-size:9px;color:#3a5a7a;font-family:var(--font-mono);">
+                ${escapeHTML(v.protein_name || '—')}</div>
+        </div>
+        <span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;flex-shrink:0;
+             background:${ec}22;color:${ec};border:1px solid ${ec}44;">${el}</span>
+        <span title="Data completeness: ${cmp}/5 fields"
+              style="width:6px;height:6px;border-radius:50%;background:${dc};
+                     flex-shrink:0;opacity:.8;"></span>
+        ${vc > 0 ? `<span style="font-size:9px;color:#34d399;flex-shrink:0;">${vc}✓</span>` : ''}
+    </div>`;
 }
 
 
