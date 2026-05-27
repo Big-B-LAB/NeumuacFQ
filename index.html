@@ -6056,9 +6056,9 @@
                 </button>
 
                 <!-- Analytics -->
-                <button class="hdr-analytics" onclick="openCompoundGenotypeCalculator()" title="Compound genotype calculator — biallelic ETI &amp; Alyftrek prediction">
-                    <i class="fas fa-dna" style="font-size:10px" aria-hidden="true"></i>
-                    <span>CGC</span>
+                <button class="hdr-analytics" onclick="openCompoundGenotypeCalculator()" title="Patient genotype — biallelic modulator eligibility (Trikafta · Alyftrek · Kalydeco)">
+                    <i class="fas fa-microscope" style="font-size:10px" aria-hidden="true"></i>
+                    <span>Patient Genotype</span>
                 </button>
 
                 <button class="hdr-analytics" onclick="showDashboard()" title="Analytics &amp; search intelligence">
@@ -33278,6 +33278,87 @@ function runCompoundGenotypeCalculation() {
         return;
     }
 
+    // ── FIX 2: R117H poly-T blocking interstitial ─────────────────────────
+    // R117H penetrance is critically dependent on poly-T context.
+    // If R117H is entered WITHOUT a compound name that already encodes
+    // the context (e.g. "R117H;5T"), block and require the clinician to
+    // declare the poly-T context before the calculation proceeds.
+    const _needsPolyT = v => {
+        const name = (v?.legacy_name || '').toUpperCase();
+        return name === 'R117H' && !name.includes(';'); // standalone R117H only
+    };
+    const polyTAllele = _needsPolyT(v1) ? v1 : _needsPolyT(v2) ? v2 : null;
+
+    if (polyTAllele && !result.dataset.polyTConfirmed) {
+        result.innerHTML = `
+        <div style="border-top:1px solid var(--border);padding-top:16px;">
+            <div style="padding:14px 16px;border-radius:8px;background:rgba(251,191,36,0.08);
+                 border:2px solid rgba(251,191,36,0.4);margin-bottom:12px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                    <i class="fas fa-dna" style="color:#fbbf24;font-size:14px;"></i>
+                    <span style="font-size:13px;font-weight:700;color:#fbbf24;">
+                        R117H — poly-T context required before calculation
+                    </span>
+                </div>
+                <div style="font-size:11px;color:var(--text-secondary);line-height:1.7;margin-bottom:12px;">
+                    R117H penetrance and modulator eligibility depend entirely on the
+                    intron 8 poly-T tract. Without knowing the context, any eligibility
+                    result could be clinically misleading.<br>
+                    <span style="color:var(--text-tertiary);font-size:10px;">
+                        Confirm from the patient's genetic report (IVST8 genotype).
+                    </span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    <button onclick="(function(){
+                        document.getElementById('cgcResult').dataset.polyTContext='5T';
+                        document.getElementById('cgcResult').dataset.polyTConfirmed='1';
+                        runCompoundGenotypeCalculation();
+                    })()"
+                        style="padding:8px 12px;border-radius:7px;border:1px solid rgba(239,68,68,0.4);
+                        background:rgba(239,68,68,0.08);color:#f87171;font-size:11px;font-weight:700;
+                        cursor:pointer;font-family:var(--font-body);text-align:left;">
+                        <strong>5T context</strong> — High penetrance · CF-causing in most patients ·
+                        Kalydeco/Trikafta potentially eligible
+                    </button>
+                    <button onclick="(function(){
+                        document.getElementById('cgcResult').dataset.polyTContext='7T';
+                        document.getElementById('cgcResult').dataset.polyTConfirmed='1';
+                        runCompoundGenotypeCalculation();
+                    })()"
+                        style="padding:8px 12px;border-radius:7px;border:1px solid rgba(251,191,36,0.4);
+                        background:rgba(251,191,36,0.06);color:#fbbf24;font-size:11px;font-weight:700;
+                        cursor:pointer;font-family:var(--font-body);text-align:left;">
+                        <strong>7T context</strong> — Intermediate penetrance · CBAVD / mild CF ·
+                        Ivacaftor data limited — MDT decision required
+                    </button>
+                    <button onclick="(function(){
+                        document.getElementById('cgcResult').innerHTML =
+                        '<div style=\\'padding:14px 16px;border-radius:8px;background:rgba(52,211,153,0.07);border:1px solid rgba(52,211,153,0.3);font-size:12px;color:#34d399;\\'>'+
+                        '<i class=\\'fas fa-check-circle\\' style=\\'margin-right:8px;\\'></i>'+
+                        '<strong>9T context — Calculation not run.</strong><br>'+
+                        '<span style=\\'color:var(--text-secondary);font-size:11px;line-height:1.6;\\'>'+
+                        'R117H in 9T context is considered a benign variant in most current guidelines. '+
+                        'No CF phenotype expected. No modulator indication. '+
+                        'Confirm with clinical genetics if any diagnostic uncertainty remains.</span></div>';
+                    })()"
+                        style="padding:8px 12px;border-radius:7px;border:1px solid rgba(52,211,153,0.3);
+                        background:rgba(52,211,153,0.06);color:#34d399;font-size:11px;font-weight:700;
+                        cursor:pointer;font-family:var(--font-body);text-align:left;">
+                        <strong>9T context</strong> — Low penetrance · Likely benign ·
+                        No modulator indication (calculation will not run)
+                    </button>
+                </div>
+            </div>
+        </div>`;
+        return; // stop here — wait for clinician choice
+    }
+
+    // Store poly-T context for banner in results, then clear for next run
+    const polyTContext = result.dataset.polyTContext || null;
+    delete result.dataset.polyTConfirmed;
+    delete result.dataset.polyTContext;
+    // ──────────────────────────────────────────────────────────────────────
+
     const verdict = computeCompoundHetVerdict(v1, v2);
     const cls1 = CLASS_CLINICAL_DATA[v1.cftr_class] || {};
     const cls2 = CLASS_CLINICAL_DATA[v2.cftr_class] || {};
@@ -33410,7 +33491,7 @@ function runCompoundGenotypeCalculation() {
                     ['Safety label',  'Transaminase warning (standard)',       '⚠️ BOXED WARNING — hepatotoxicity'],
                     ['LFT monitoring','Periodic (no fixed schedule)',          'Baseline → 3 months → 6 months → annually'],
                     ['SwCl reduction','Standard modulator response',           '✦ Superior: −8.4 mmol/L additional vs ETI'],
-                    ['CYP3A',        'Standard interactions',                  'Dose adjust with inhibitors/inducers'],
+                    ['CYP3A',        '⚠ Same pathway — azoles, macrolides, rifampicin, St John\'s Wort · dose adjust or avoid', '⚠ Same CYP3A pathway · every-other-day (moderate inhibitors) · once-weekly (strong inhibitors)'],
                     ['Ophthal. (peds)','Lens opacity monitoring',              'Lens opacity monitoring (deutivacaftor)'],
                     ['AEMPS Spain',  'Standard CF protocol',                   'SwCl + LCI₂.₅ + spirometry monitoring'],
                 ].map((r, i) => `
@@ -33447,6 +33528,8 @@ function runCompoundGenotypeCalculation() {
                         ['⚖️', 'Patient weight recorded', '<40 kg → low-strength formulation · ≥40 kg → standard formulation'],
                         ['💊', 'CYP3A medications reviewed', 'Azoles, macrolides, HIV protease inhibitors → dose adjustment required'],
                         ['👁️', 'Ophthalmology baseline (<18y)', 'Lens opacity baseline exam before initiating in patients under 18'],
+                        ['🫀', 'Pre-existing liver disease assessed', 'Boxed warning: caution in hepatic impairment · Child-Pugh B: reduce dose · Child-Pugh C: not recommended'],
+                        ['🫘', 'Renal function noted', 'No dose adjustment for mild-moderate impairment · Severe (<30 mL/min eGFR): limited data — use with caution'],
                         ['📋', 'Hormonal contraceptives noted', 'Higher rash incidence in females on hormonal contraceptives — counsel patient'],
                         ['📊', 'AEMPS monitoring plan set (Spain)', 'SwCl + LCI₂.₅ + spirometry schedule: baseline → 3 months → 6 months → annually'],
                     ].map(([icon, title, desc]) => `
@@ -33513,10 +33596,59 @@ function runCompoundGenotypeCalculation() {
             The CGC assumes both alleles are disease-causing based on prior clinical diagnosis.
         </div>` : '';
 
+    // ── FIX 2: Poly-T context banner (shown when clinician confirmed 5T or 7T) ──
+    const polyTBannerHTML = polyTContext ? `
+        <div style="padding:8px 12px;border-radius:7px;margin-bottom:10px;
+             background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.3);
+             font-size:11px;color:#fbbf24;line-height:1.5;">
+            <strong>R117H — ${polyTContext} context confirmed.</strong>
+            ${polyTContext === '5T'
+                ? ' High penetrance — treat as CF-causing. Ivacaftor/Trikafta may be eligible per label.'
+                : ' Intermediate penetrance (CBAVD/mild CF). Modulator response limited — MDT decision required before prescribing.'}
+        </div>` : '';
+
+    // ── FIX 3: Age minimum warning — shown whenever any modulator is eligible ──
+    const ageWarningHTML = verdict.anyEligible ? `
+        <div style="padding:8px 12px;border-radius:7px;margin-bottom:10px;
+             background:rgba(96,165,250,0.06);border:1px solid rgba(96,165,250,0.2);
+             font-size:10px;color:var(--text-tertiary);line-height:1.6;">
+            <strong style="color:#60a5fa;">⚠ Verify patient age before prescribing:</strong>
+            Alyftrek ≥6 years ·
+            Trikafta ≥2 years ·
+            Kalydeco: oral granules for 1–5 years, tablets ≥6 years ·
+            <em>This tool does not capture patient age — confirm minimum age eligibility from SmPC.</em>
+        </div>` : '';
+
+    // ── FIX 5: Cis/trans acknowledgement checkbox ──
+    // MDT Report button is disabled until this is ticked
+    const transCheckboxHTML = `
+        <div style="padding:8px 12px;border-radius:7px;margin-bottom:10px;
+             background:rgba(99,140,210,0.06);border:1px solid rgba(99,140,210,0.2);">
+            <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                <input type="checkbox" id="cgcTransConfirm"
+                    onchange="(function(cb){
+                        const btn = document.getElementById('cgcMDTBtn');
+                        if(btn) btn.disabled = !cb.checked;
+                        cb.closest('div').style.borderColor = cb.checked ? 'rgba(52,211,153,0.4)' : 'rgba(99,140,210,0.2)';
+                    })(this)"
+                    style="margin-top:2px;flex-shrink:0;accent-color:#34d399;">
+                <span style="font-size:11px;color:var(--text-secondary);line-height:1.6;">
+                    I confirm these alleles are on <strong>separate chromosomes (trans)</strong>
+                    — verified from the patient's genetic report (phase confirmed).
+                    <span style="color:var(--text-tertiary);font-size:10px;display:block;margin-top:2px;">
+                        If phase is unknown, clinical genetics referral required before treatment decision.
+                    </span>
+                </span>
+            </label>
+        </div>`;
+
     result.innerHTML = `
     <div style="border-top:1px solid var(--border);padding-top:16px;">
 
         ${jurisdictionHTML}
+        ${polyTBannerHTML}
+        ${ageWarningHTML}
+        ${transCheckboxHTML}
         ${bothAlleleCFwarning}
         ${expansionBannerHTML}
         ${unknownPathwayHTML}
@@ -33583,9 +33715,14 @@ function runCompoundGenotypeCalculation() {
                     background:rgba(52,211,153,0.08);color:#34d399;cursor:pointer;font-family:var(--font-body);">
                 <i class="fas fa-bookmark" style="font-size:10px;margin-right:4px;"></i>Save case
             </button>
-            <button onclick="generateMDTReport('${escapeAttr(v1.legacy_name)}','${escapeAttr(v2.legacy_name)}')"
+            <button id="cgcMDTBtn" onclick="generateMDTReport('${escapeAttr(v1.legacy_name)}','${escapeAttr(v2.legacy_name)}')"
+                    disabled
+                    title="Tick the cis/trans confirmation above to enable"
                     style="margin-left:10px;font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid rgba(41,121,255,0.3);
-                    background:rgba(41,121,255,0.08);color:#60a5fa;cursor:pointer;font-family:var(--font-body);">
+                    background:rgba(41,121,255,0.08);color:#60a5fa;cursor:pointer;font-family:var(--font-body);
+                    opacity:0.5;transition:opacity .2s;"
+                    onmouseenter="if(!this.disabled)this.style.opacity='1'"
+                    onmouseleave="if(!this.disabled)this.style.opacity=''">
                 <i class="fas fa-file-medical" style="font-size:10px;margin-right:4px;"></i>Generate MDT report
             </button>
         </div>
@@ -33659,11 +33796,13 @@ function generateMDTReport(allele1Name, allele2Name) {
 
     // Remove any existing MDT overlay
     document.getElementById('mdtReportOverlay')?.remove();
+    // Close the CGC calculator overlay so the report is not hidden behind it
+    document.getElementById('compGenoCalc')?.remove();
 
     const overlay = document.createElement('div');
     overlay.id = 'mdtReportOverlay';
     Object.assign(overlay.style, {
-        position:'fixed', inset:'0', zIndex:'999997',
+        position:'fixed', inset:'0', zIndex:'999999',
         background:'rgba(0,0,0,0.82)', display:'flex',
         alignItems:'flex-start', justifyContent:'center',
         padding:'32px 16px', overflowY:'auto',
@@ -34266,19 +34405,27 @@ const MODULATOR_MAP = {
     'Trikafta (ETI)': {
         description: 'Elexacaftor / Tezacaftor / Ivacaftor',
         eligible: (a1, a2) => {
-            const f508 = v => v?.legacy_name?.toUpperCase().includes('F508DEL') ||
-                              v?.protein_name?.toUpperCase()?.includes('F508DEL');
-            // EMA/FDA label: F508del homozygous OR F508del + minimal-function second allele.
-            // If both alleles are non-F508del responsive variants, eligibility requires MDT confirmation.
-            const isF508del = f508(a1) || f508(a2);
-            const bothResponsive = a1?.eti_prediction === 'responsive' && a2?.eti_prediction === 'responsive';
-            return isF508del || bothResponsive;
+            // FIX: eligibility requires ≥1 allele on the FDA/EMA named label list.
+            // "both eti_prediction=responsive" alone is NOT sufficient — a variant
+            // can have FRT assay data showing responsiveness without being on the
+            // Trikafta prescribing label. Use ETI_AUTHORITY.fda_trikafta_approved
+            // as the gate, which contains the actual approved mutation list.
+            const onLabel = v => {
+                if (!v) return false;
+                const names = [v.legacy_name, v.protein_name]
+                    .filter(Boolean).map(n => n.trim());
+                return names.some(n => ETI_AUTHORITY?.fda_trikafta_approved?.has(n));
+            };
+            return onLabel(a1) || onLabel(a2);
         },
         requiresMDTConfirmation: (a1, a2) => {
+            // MDT required when no F508del present — non-F508del label expansions
+            // have less real-world clinical evidence
             const f508 = v => v?.legacy_name?.toUpperCase().includes('F508DEL') ||
                               v?.protein_name?.toUpperCase()?.includes('F508DEL');
             return !f508(a1) && !f508(a2);
         },
+        cyp3aNote: 'CYP3A interactions: strong inhibitors (azoles, HIV protease inhibitors) → reduce dose · strong inducers (rifampicin, St John\'s Wort) → avoid · same pathway as Alyftrek',
         classes: ['II', 'II/III'],
         color: '#34d399',
         label: 'Trikafta eligible'
