@@ -490,7 +490,7 @@
             inset: 0;
             z-index: 99999;
             background: #05091a;
-            display: flex;
+            display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
@@ -27059,7 +27059,7 @@ function renderETITimeline(variant) {
             <div style="flex:1;min-width:0;">
                 <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap;">
                     <span style="font-size: 11px;padding:1px 5px;border-radius:3px;background:${col}22;color:${col};border:1px solid ${col}44;font-family:var(--font-mono);font-weight:700;">${escapeHTML(lbl)}</span>
-                    ${agreed => agreed ? '<span style="font-size: 11px;color:#34d399;">✓ Confirms ETI</span>' : ''}${agrees ? '<span style="font-size: 11px;color:#34d399;">✓ Confirms ETI</span>' : ''}
+                    ${agrees ? '<span style="font-size: 11px;color:#34d399;">✓ Confirms ETI</span>' : ''}
                     ${contested ? '<span style="font-size: 11px;color:#f87171;">⚡ Contradicts ETI</span>' : ''}
                     <span style="font-size: 11px;color:var(--text-tertiary);margin-left:auto;font-family:var(--font-mono);">Q:${qs}/10</span>
                 </div>
@@ -27871,19 +27871,43 @@ function drawCanvas() {
     }
 
     var safetyTimer = null;
+    var loaderStarted = false;   // guard — advance('done') only dismisses after start()
+    var dataDoneBeforeStart = false; // flag if loadVariants finished before Entrar was clicked
 
     window.LOADER = {
-        advance: advance,
+        advance: function(key) {
+            // advance('done') from loadVariants() fires before start() on fast connections.
+            // Record the fact but don't dismiss — start() will fast-track immediately.
+            if (key === 'done' && !loaderStarted) {
+                dataDoneBeforeStart = true;
+                return;
+            }
+            advance(key);
+        },
         setVariantCount: setVariantCount,
         setError: setError,
         dismiss: dismiss,
         _clearSafety: function() { clearTimeout(safetyTimer); },
         start: function() {
-            dismissed = false; currentPct = 0;
-            screen.style.display = ''; screen.style.opacity = '1';
+            dismissed = false; currentPct = 0; loaderStarted = true;
+            screen.style.display = 'flex'; screen.style.opacity = '1';
             screen.style.zIndex = '100002'; screen.classList.remove('fade-out');
             fill.style.width = '0%'; pctEl.textContent = '0%';
             setStatus('Iniciando NeumuacFQ…');
+
+            // If data already loaded before the user clicked Entrar — fast-track to done
+            if (dataDoneBeforeStart) {
+                advance('boot'); advance('db_connect'); advance('fetch_page');
+                advance('index'); advance('search_intel'); advance('render');
+                setTimeout(function() { advance('done'); }, 600);
+                setTimeout(function() {
+                    showHospitalGreeting();
+                    if (typeof initHospital === 'function') initHospital();
+                    else if (typeof showHospitalModal === 'function') showHospitalModal();
+                }, 1200);
+                return;
+            }
+
             var seq = [
                 {key:'boot',delay:0},{key:'db_connect',delay:900},
                 {key:'fetch_page',delay:2100},{key:'index',delay:3400},
