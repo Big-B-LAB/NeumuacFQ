@@ -6107,7 +6107,7 @@
                 <div id="authUserBadge" style="display:none;align-items:center;gap:4px;
                      padding:3px 8px;border-radius:5px;background:rgba(41,121,255,0.06);
                      border:1px solid rgba(41,121,255,0.12);margin-right:4px;"></div>
-                <button id="authLoginBtn" onclick="AUTH._showLoginScreen()"
+                <button id="authLockBtn" onclick="AUTH._showLoginScreen()"
                     title="Sign in for write access — validate variants, approve Helios items"
                     style="width:28px;height:28px;border-radius:6px;border:1px solid rgba(99,140,210,0.15);
                     background:transparent;color:#2a4a6a;cursor:pointer;display:flex;
@@ -7780,7 +7780,7 @@ const AUTH = {
 
     _updateHeader() {
         const badge   = document.getElementById('authUserBadge');
-        const lockBtn = document.getElementById('authLoginBtn');
+        const lockBtn = document.getElementById('authLockBtn');
         const name    = AUTH.displayName();
         if (name && AUTH.isAuthenticated()) {
             // Signed in — show name badge, change lock to unlock
@@ -29624,9 +29624,6 @@ Object.assign(window, { showAuditTrail });
                 <i class="fas fa-shield-halved"></i> Validate
                 <span class="helios-tab-badge" id="htabBadgeValidate" style="display:none;background:var(--helios-blue);"></span>
             </button>
-            <button class="helios-tab" id="htab-calibration" onclick="heliosTab('calibration')" title="AI Calibration — feedback loop stats">
-                <i class="fas fa-sliders-h"></i> Calibration
-            </button>
         </div>
 
         <div class="helios-status-row">
@@ -35027,41 +35024,7 @@ function runCompoundGenotypeCalculation() {
             <div style="padding:12px 14px 10px;">
                 <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
                     <input type="checkbox" id="cgcTransConfirm"
-                        onchange="(function(cb){
-                            const btn   = document.getElementById('cgcMDTBtn');
-                            const block = document.getElementById('cgcTransBlock');
-                            const note  = document.getElementById('cgcMDTNote');
-                            if(cb.checked){
-                                if(btn){
-                                    btn.disabled = false;
-                                    btn.style.opacity='1';
-                                    btn.style.background='linear-gradient(135deg,#1a56db,#2979ff)';
-                                    btn.style.color='#fff';
-                                    btn.style.boxShadow='0 4px 16px rgba(41,121,255,0.35)';
-                                    btn.style.transform='translateY(0)';
-                                    btn.innerHTML='<i class=\"fas fa-file-medical\" style=\"margin-right:6px;\"></i>Generate MDT Report <i class=\"fas fa-download\" style=\"font-size:9px;margin-left:4px;opacity:.8;\"></i>';
-                                }
-                                if(block){
-                                    block.style.borderColor='rgba(52,211,153,0.45)';
-                                    block.style.background='rgba(52,211,153,0.04)';
-                                }
-                                if(note) note.style.color='#34d399';
-                            } else {
-                                if(btn){
-                                    btn.disabled=true;
-                                    btn.style.opacity='0.4';
-                                    btn.style.background='rgba(41,121,255,0.06)';
-                                    btn.style.color='#60a5fa';
-                                    btn.style.boxShadow='none';
-                                    btn.innerHTML='<i class=\"fas fa-file-medical\" style=\"margin-right:6px;\"></i>Generate MDT Report';
-                                }
-                                if(block){
-                                    block.style.borderColor='rgba(99,140,210,0.18)';
-                                    block.style.background='rgba(99,140,210,0.04)';
-                                }
-                                if(note) note.style.color='var(--text-tertiary)';
-                            }
-                        })(this)"
+                        onchange="cgcTransToggle(this.checked)"
                         style="margin-top:3px;flex-shrink:0;accent-color:#34d399;width:15px;height:15px;">
                     <div style="flex:1;">
                         <div style="font-size:11px;color:var(--text-secondary);line-height:1.6;font-weight:500;">
@@ -35329,6 +35292,36 @@ function openClinicalNote(noteId) {
 }
 
 Object.assign(window, { CLINICAL_NOTES, openClinicalNote });
+
+function cgcTransToggle(checked) {
+    const btn   = document.getElementById('cgcMDTBtn');
+    const block = document.getElementById('cgcTransBlock');
+    const note  = document.getElementById('cgcMDTNote');
+    if (checked) {
+        if (btn) {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.background = 'linear-gradient(135deg,#1a56db,#2979ff)';
+            btn.style.color = '#fff';
+            btn.style.boxShadow = '0 4px 16px rgba(41,121,255,0.35)';
+            btn.innerHTML = '<i class="fas fa-file-medical" style="margin-right:6px;"></i>Generate MDT Report \u2193';
+        }
+        if (block) { block.style.borderColor = 'rgba(52,211,153,0.45)'; block.style.background = 'rgba(52,211,153,0.04)'; }
+        if (note)  note.style.color = '#34d399';
+    } else {
+        if (btn) {
+            btn.disabled = true;
+            btn.style.opacity = '0.4';
+            btn.style.background = 'rgba(41,121,255,0.06)';
+            btn.style.color = '#60a5fa';
+            btn.style.boxShadow = 'none';
+            btn.innerHTML = '<i class="fas fa-file-medical" style="margin-right:6px;"></i>Generate MDT Report';
+        }
+        if (block) { block.style.borderColor = 'rgba(99,140,210,0.18)'; block.style.background = 'rgba(99,140,210,0.04)'; }
+        if (note)  note.style.color = 'var(--text-tertiary)';
+    }
+}
+Object.assign(window, { cgcTransToggle });
 
 function generateMDTReport(allele1Name, allele2Name) {
     const v1 = STATE.variantsByLegacyName.get(allele1Name);
